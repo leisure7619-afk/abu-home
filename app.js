@@ -1109,7 +1109,7 @@ function Bowl(){
 function Car(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('阿布去兜風','carstat'));
   const wrap=h(`<div class="catch-wrap car-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span><b>加時間</b> 💨 +1秒　🐕 +2秒　🍗 +3秒</span><span class="no"><b class="no">閃開對向來車</b> 撞到 −3秒</span></div>`));
+  s.appendChild(h(`<div class="legend"><span><b>加時間</b> 💨 +1秒　🐕 +2秒　🍗 +3秒</span><span class="no"><b class="no">閃開</b> 🚗 🛵 🚲 撞到 −3秒</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d');
   const F={}; ['face_66','face_60','face_143','face_68','face_62','face_65'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -1184,8 +1184,42 @@ function Car(){
     ctx.fillStyle='#FFFDF7'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,30,12): ctx.rect(bx,by,tw,30); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#2B2723'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(txt,bx+10,by+15);
   }
-  /* 對向來車：車頭朝左，開過來 */
+  /* 對向來車：汽車、機車、腳踏車，都朝左開過來 */
+  const HELMETS=['#E0715A','#F2C230','#7FB3D5','#FFFDF7','#8DBF7A'];
+  const vw=o=>{ const L=laneH(); return o.k==='car'? Math.min(W*.3,L*1.9) : o.k==='moto'? L*1.15 : L*1.0; };
+  function rider(x,y,s,helmet,pedal){                                // 騎士：安全帽、身體、手、腳
+    ctx.strokeStyle='#2B2723'; ctx.lineWidth=2.5; ctx.lineCap='round';
+    ctx.fillStyle='#6B8FB3'; ctx.beginPath(); ctx.moveTo(x+s*.05,y-s*.95); ctx.lineTo(x+s*.25,y-s*.35); ctx.lineTo(x-s*.12,y-s*.35); ctx.closePath(); ctx.fill(); ctx.stroke();   // 身體
+    ctx.beginPath(); ctx.moveTo(x+s*.02,y-s*.8); ctx.lineTo(x-s*.32,y-s*.62); ctx.stroke();                                   // 手伸向把手
+    const a=pedal||0; ctx.beginPath(); ctx.moveTo(x+s*.1,y-s*.38); ctx.lineTo(x-s*.12+Math.cos(a)*s*.14,y-s*.08+Math.sin(a)*s*.1); ctx.stroke();   // 腳
+    ctx.fillStyle='#F3D9C0'; ctx.beginPath(); ctx.arc(x+s*.02,y-s*1.1,s*.16,0,7); ctx.fill(); ctx.stroke();                    // 臉
+    ctx.fillStyle=helmet; ctx.beginPath(); ctx.arc(x+s*.04,y-s*1.14,s*.18,Math.PI*.95,Math.PI*2.05); ctx.fill(); ctx.stroke();  // 安全帽
+  }
+  function drawMoto(o){
+    const L=laneH(), s=L*.62, x=o.x, y=laneY(o.lane)+L*.18;
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(x,y+s*.3,s*.8,5,0,0,7); ctx.fill();
+    ctx.strokeStyle='#2B2723'; ctx.lineWidth=3;
+    [-s*.55,s*.5].forEach(wx=>{ ctx.fillStyle='#2B2723'; ctx.beginPath(); ctx.arc(x+wx,y+s*.12,s*.2,0,7); ctx.fill(); ctx.fillStyle='#C9C4BC'; ctx.beginPath(); ctx.arc(x+wx,y+s*.12,s*.08,0,7); ctx.fill(); });
+    ctx.fillStyle=o.c; ctx.beginPath(); ctx.moveTo(x-s*.7,y-s*.05); ctx.quadraticCurveTo(x-s*.55,y-s*.45,x-s*.3,y-s*.3); ctx.lineTo(x+s*.1,y-s*.1); ctx.lineTo(x+s*.5,y-s*.35); ctx.quadraticCurveTo(x+s*.8,y-s*.3,x+s*.7,y+s*.05); ctx.lineTo(x-s*.7,y+s*.05); ctx.closePath(); ctx.fill(); ctx.stroke();   // 車身
+    ctx.fillStyle='#2B2723'; ctx.fillRect(x+s*.05,y-s*.42,s*.45,s*.1);                                                           // 座墊
+    ctx.beginPath(); ctx.moveTo(x-s*.5,y-s*.35); ctx.lineTo(x-s*.42,y-s*.72); ctx.stroke();                                       // 把手
+    ctx.fillStyle='#FFF3B0'; ctx.beginPath(); ctx.arc(x-s*.66,y-s*.22,s*.07,0,7); ctx.fill();
+    rider(x+s*.2,y-s*.3,s*.72,o.h);
+    ctx.restore();
+  }
+  function drawBike(o){
+    const L=laneH(), s=L*.6, x=o.x, y=laneY(o.lane)+L*.18, a=dist/14;
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(x,y+s*.35,s*.75,4,0,0,7); ctx.fill();
+    ctx.strokeStyle='#2B2723'; ctx.lineWidth=2.5;
+    [-s*.5,s*.5].forEach(wx=>{ ctx.beginPath(); ctx.arc(x+wx,y+s*.05,s*.28,0,7); ctx.stroke(); });                              // 兩個細輪子
+    ctx.strokeStyle=o.c; ctx.lineWidth=3.5; ctx.beginPath(); ctx.moveTo(x-s*.5,y+s*.05); ctx.lineTo(x-s*.35,y-s*.45); ctx.lineTo(x+s*.15,y-s*.35); ctx.lineTo(x+s*.05,y+s*.05); ctx.lineTo(x-s*.5,y+s*.05); ctx.moveTo(x+s*.05,y+s*.05); ctx.lineTo(x+s*.5,y+s*.05); ctx.moveTo(x+s*.15,y-s*.35); ctx.lineTo(x+s*.5,y+s*.05); ctx.stroke();   // 車架
+    ctx.strokeStyle='#2B2723'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(x-s*.35,y-s*.45); ctx.lineTo(x-s*.42,y-s*.65); ctx.stroke();                  // 把手
+    rider(x+s*.12,y-s*.3,s*.72,o.h,a);
+    ctx.restore();
+  }
   function drawOncoming(o){
+    if(o.k==='moto') return drawMoto(o);
+    if(o.k==='bike') return drawBike(o);
     const L=laneH(), cw=Math.min(W*.3,L*1.9), ch=L*.55, x=o.x, y=laneY(o.lane);
     ctx.save(); ctx.translate(x,y);
     ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0,ch*.55,cw*.5,5,0,0,7); ctx.fill();
@@ -1200,11 +1234,12 @@ function Car(){
   }
   function spawn(){
     const ln=Math.floor(Math.random()*3);
-    if(items.some(o=>o.x>W-60&&o.lane===ln)) return;
+    if(items.some(o=>o.x>W-(o.car?130:60)&&o.lane===ln)) return;
     if(Math.random()<Math.min(.55,.36+t/150)){                      // 對向來車越來越多
       const free=[0,1,2].filter(k=>!items.some(o=>o.car&&o.x>W-120&&o.lane===k));
       if(free.length<2) return;                                       // 一定留一條路可以閃
-      items.push({car:true,x:W+80,lane:ln,c:pick(CARS),v:110+Math.random()*60});
+      const k=pick(['car','car','moto','moto','bike']);            // 汽車、機車、腳踏車
+      items.push({car:true,k,x:W+80,lane:ln,c:pick(CARS),h:pick(HELMETS),v: k==='car'? 110+Math.random()*60 : k==='moto'? 70+Math.random()*50 : 15+Math.random()*25});
     }else{ const it=pick(GOOD); items.push({x:W+30,lane:ln,e:it[0],val:it[1],line:pick(it[2]),bob:Math.random()*6}); }
   }
   function frame(ts){
@@ -1238,9 +1273,9 @@ function Car(){
     for(let i=items.length-1;i>=0;i--){
       const it=items[i]; it.x-=(speed+(it.car?it.v:0))*dt*1.1;
       if(it.car) drawOncoming(it); else ctx.fillText(it.e,it.x,laneY(it.lane)+Math.sin(t*4+it.bob)*3);
-      const reach=it.car? half+Math.min(W*.3,laneH()*1.9)*.4 : half;
+      const reach=it.car? half+vw(it)*.4 : half;
       if(phase==='drive'&&it.lane===lane&&Math.abs(it.x-cx)<reach){
-        if(it.car){ if(hurt>0) continue; items.splice(i,1); left=Math.max(0,left-CRASH); hurt=.9; shake=.4; sfx.bad(); pop(`−${CRASH} 秒`,'#C8452F'); talk(pick(['嚇死我了！','好險…','叭叭！']),'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(70)}catch(e){} }
+        if(it.car){ if(hurt>0) continue; items.splice(i,1); left=Math.max(0,left-CRASH); hurt=.9; shake=.4; sfx.bad(); pop(`−${CRASH} 秒`,'#C8452F'); talk(it.k==='bike'? pick(['腳踏車！小心！','差點撞到人']) : it.k==='moto'? pick(['機車好吵！','嚇死我了！']) : pick(['叭叭！','好險…']),'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(70)}catch(e){} }
         else { items.splice(i,1); left+=it.val; sfx.good(); pop(`+${it.val} 秒`,'#3E6B25'); talk(it.line,it.val>=3?'face_68':'face_60',1); }
         ctx.font='30px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
       }else if(it.x<-120) items.splice(i,1);
@@ -1249,7 +1284,7 @@ function Car(){
     if(hurt>0&&Math.floor(hurt*10)%2===0){ ctx.fillStyle='rgba(200,69,47,.12)'; ctx.fillRect(0,0,W,H); }
     if(faceT>0){ faceT-=dt; if(faceT<=0&&phase==='drive') faceK= speed>240? 'face_66':'face_65'; }
     if(sayT>0){ sayT-=dt; bubble(say,c.hx+c.r*.4,c.hy-c.r); }
-    pops=pops.filter(p=>{ p.y+=40*dt; p.v-=dt*.8; ctx.globalAlpha=Math.max(0,p.v); ctx.font='bold 20px "Huninn",sans-serif'; ctx.fillStyle=p.col; ctx.textAlign='center'; ctx.fillText(p.txt,c.hx+40,c.hy-c.r-20-p.y); ctx.globalAlpha=1; return p.v>0; });
+    pops=pops.filter(p=>{ p.y+=40*dt; p.v-=dt*.8; ctx.globalAlpha=Math.max(0,p.v); ctx.font='bold 20px "Huninn",sans-serif'; ctx.fillStyle=p.col; ctx.textAlign='center'; ctx.fillText(p.txt,Math.min(W-40,c.x+c.cw*.5+44),c.y-10-p.y); ctx.globalAlpha=1; return p.v>0; });
     if(phase==='drive'){                                              // 剩下的時間
       const full=Math.max(START,left); ctx.fillStyle='rgba(43,39,35,.12)'; ctx.fillRect(12,12,W-24,8); ctx.fillStyle= left<5?'#C8452F':'#D9772B'; ctx.fillRect(12,12,(W-24)*Math.min(1,left/full),8);
       ctx.fillStyle='#2B2723'; ctx.font='bold 13px "Huninn",sans-serif'; ctx.textAlign='right'; ctx.fillText(`剩 ${Math.ceil(left)} 秒`,W-14,34);
@@ -1273,7 +1308,7 @@ function Car(){
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
-    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道。吃到 💨 🐕 🍗 加時間，撞到對向來車扣時間，會越開越快。<br>時間用完就到目的地，連打畫面把阿布拉下車，成功再 +${BONUS} 秒！</p><button class="btn" id="go">出發！</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道。吃到 💨 🐕 🍗 加時間，撞到對向的汽車、機車、腳踏車扣時間，會越開越快。<br>時間用完就到目的地，連打畫面把阿布拉下車，成功再 +${BONUS} 秒！</p><button class="btn" id="go">出發！</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_66',1.2); raf=requestAnimationFrame(frame); };
   }
   setTimeout(intro,50);
