@@ -474,7 +474,7 @@ function Games(){
     <button class="game-card" data-g="bowl"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>幫阿布裝飯</b><span>按住倒飼料，倒到剛剛好的份量</span></div><span class="reward">+3~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="quiz"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>阿布能不能吃？</b><span>葡萄可以嗎？地瓜呢？考考你</span></div><span class="reward">+1~6<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多，帶他繞開人群</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多、怕鞭炮，越緊張越想衝回家</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
   main.appendChild(s);
@@ -1324,42 +1324,44 @@ function Car(){
   cleanup=()=>{ phase='over'; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown',onKey); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
-/* ================= 小遊戲：陪阿布散步（阿布怕人多） =================
- * 阿布有點社恐：離人群太近會越來越緊張，緊張到頂就定住不動。
- * 手指左右拖，帶阿布繞開人群走到安靜的草地；定住了就按住畫面摸摸他，等他放鬆再走。 */
+/* ================= 小遊戲：陪阿布散步（阿布怕人多、怕鞭炮） =================
+ * 左右拖著阿布走。靠近人群、被鞭炮嚇到，阿布「想回家」就越高；越想回家就拉著你走越快、越難閃。
+ * 撿草地和餅乾讓他放鬆。想回家滿了，阿布就拖著你衝回家——比誰散步走得最遠，每 20 公尺換 1 片餅乾。 */
 function Walk(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('陪阿布散步','wstat'));
   const wrap=h(`<div class="catch-wrap walk-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span><b>撿起來</b> 🌿 +1　<img class="ico" src="img/biscuit/bear.png" alt=""> +2</span><span class="no"><b class="no">人多會緊張</b> 繞開人群</span></div>`));
+  s.appendChild(h(`<div class="legend"><span><b>放鬆</b> 🌿　<img class="ico" src="img/biscuit/bear.png" alt=""></span><span class="no"><b class="no">閃開</b> 人群　🧨</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d');
   const F={}; ['face_65','face_60','face_143','face_66','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
   const bis=new Image(); bis.src=SHAPES[0];
-  const GOAL=2600, LIMIT=55, R=80, INK='#2B2723';
+  const R=80, INK='#2B2723', PX_M=30;
   const SKIN=['#F6D7BD','#EBC19E','#D9A57E','#F3CFB3'], HAIR=['#2B2723','#4A3426','#6B4A32','#8C8A86','#1F1B18'];
   const SHIRT=['#E0715A','#7FB3D5','#8DBF7A','#F2C230','#B8A6D9','#EE8597','#FFFDF7','#5C7A9C'], PANTS=['#3E4A5C','#5C6B7A','#8A6242','#2B2723','#6B8FB3'];
   const CHAT=['哈哈哈','欸你看','…','好吵','！','在拍照','排隊中'];
-  let W=0,H=0,dpr=1, x=0, tx=0, fear=0, frozen=false, holding=false, freezes=0, walked=0, t=0, last=0, raf=0, phase='intro', things=[], spawnT=0, pts=0;
-  let faceK='face_65', say='', sayT=0, hearts=[];
+  let W=0,H=0,dpr=1, x=0, tx=0, want=0, freezeT=0, bumpCD=0, walked=0, speed=0, t=0, last=0, raf=0, phase='intro', things=[], spawnT=0, blasts=[], boltT=0, shake=0;
+  let faceK='face_65', say='', sayT=0, lastM=0, bump=0;
   function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); if(!x) x=tx=W/2; }
   size(); const ro=new ResizeObserver(size); ro.observe(wrap);
   const ay=()=>H*.7, ar=()=>Math.max(22,Math.min(30,W*.075));
-  const stat=$('#wstat'); const upd=()=>{ stat.textContent=`${Math.min(100,Math.round(walked/GOAL*100))}%　${pts} 分`; }; upd();
+  const stat=$('#wstat'); stat.textContent='';
   const talk=(txt,ms=1.3)=>{ say=txt; sayT=ms; };
   const setX=e=>{ const r=wrap.getBoundingClientRect(); tx=Math.max(W*.14+ar(),Math.min(W*.86-ar(),e.clientX-r.left)); };
-  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); holding=true; if(!frozen) setX(e); try{ wrap.setPointerCapture(e.pointerId); }catch(x){} });
-  wrap.addEventListener('pointermove',e=>{ if(holding&&!frozen) setX(e); });
+  let holding=false;
+  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); holding=true; setX(e); try{ wrap.setPointerCapture(e.pointerId); }catch(x){} });
+  wrap.addEventListener('pointermove',e=>{ if(holding) setX(e); });
   ['pointerup','pointercancel'].forEach(ev=>wrap.addEventListener(ev,()=>{ holding=false; }));
   const look=()=>({skin:pick(SKIN),hair:pick(HAIR),style:Math.floor(Math.random()*4),shirt:pick(SHIRT),pants:pick(PANTS),bag:Math.random()<.3?pick(['#D9772B','#7FB3D5','#EE8597']):'',phone:Math.random()<.25,ph:Math.random()*6});
   function spawn(){
-    const r=Math.random();
-    if(r<.34){                                                   // 一群人（聚在一起聊天、排隊、拍照）
+    const r=Math.random(), m=walked/PX_M;
+    if(m>25&&r<Math.min(.2,.08+m/2000)){ things.push({k:'boom',x:W*.2+Math.random()*W*.6,y:-30,fuse:2.4+Math.random()*1.2}); return; }   // 鞭炮：引信燒完就爆
+    if(r<.36){                                                   // 一群人
       const n=3+Math.floor(Math.random()*4), cx=W*.2+Math.random()*W*.6;
-      const m=[...Array(n)].map((_,k)=>{ const a=k/n*Math.PI*2+Math.random()*.6, rr=14+Math.random()*16; return Object.assign({dx:Math.cos(a)*rr*1.3,dy:Math.sin(a)*rr*.8},look()); });
-      things.push({k:'crowd',x:cx,y:-60,m,vx:0,chat:pick(CHAT),ct:Math.random()*3});
+      const mm=[...Array(n)].map((_,k)=>{ const a=k/n*Math.PI*2+Math.random()*.6, rr=14+Math.random()*16; return Object.assign({dx:Math.cos(a)*rr*1.3,dy:Math.sin(a)*rr*.8},look()); });
+      things.push({k:'crowd',x:cx,y:-60,m:mm,vx:0,chat:pick(CHAT),ct:Math.random()*3});
     }else if(r<.66){                                             // 橫過去的路人
       const dir=Math.random()<.5?1:-1;
-      things.push({k:'walker',x:dir>0?-20:W+20,y:-20-Math.random()*60,m:[Object.assign({dx:0,dy:0},look())],vx:dir*(35+Math.random()*30)});
+      things.push({k:'walker',x:dir>0?-20:W+20,y:-20-Math.random()*60,m:[Object.assign({dx:0,dy:0},look())],vx:dir*(35+Math.random()*35)});
     }else things.push({k:Math.random()<.7?'grass':'bis',x:W*.18+Math.random()*W*.64,y:-30});
   }
   /* 路人：正面的小人，安全又可愛（頭髮、衣服、褲子、包包、手機都隨機） */
@@ -1404,96 +1406,121 @@ function Walk(){
       else if(d.kind==='lamp'){ ctx.fillStyle='#5C6B7A'; ctx.fillRect(sx-2,yy-26,4,30); ctx.fillStyle='#FFF3B0'; ctx.strokeStyle=INK; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(sx,yy-28,6,0,7); ctx.fill(); ctx.stroke(); }
       else { ctx.fillStyle='#A57A52'; ctx.strokeStyle=INK; ctx.lineWidth=1.5; ctx.fillRect(sx-9,yy-16,18,32); ctx.strokeRect(sx-9,yy-16,18,32); ctx.fillStyle='#8A6242'; ctx.fillRect(sx-9,yy-16,5,32); }
     });
-    const gy=H*.12-(GOAL-walked);                                                                  // 終點：安靜的草地
-    if(gy>-80){
-      ctx.fillStyle='#A9D18E'; ctx.fillRect(0,gy-200,W,200);
-      for(let k=0;k<14;k++){ ctx.fillStyle=['#EE8597','#FFFDF7','#F2C230'][k%3]; ctx.beginPath(); ctx.arc((k*53)%W+12,gy-20-(k*37)%170,3.5,0,7); ctx.fill(); }
-      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(W/2-58,gy-46,116,28,8): ctx.rect(W/2-58,gy-46,116,28); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#8A6242'; ctx.fillRect(W/2-2,gy-18,4,16); ctx.fillStyle=INK; ctx.font='bold 15px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('安靜的草地',W/2,gy-32);
-    }
   }
-  /* 阿布：柴犬身體＋照片臉，牽繩連到畫面下方家人的手 */
+  function drawBoom(o){                                        // 鞭炮：紅色一串，引信冒火花，快爆時閃
+    const blink=o.fuse<1&&Math.floor(o.fuse*8)%2===0;
+    ctx.save(); ctx.translate(o.x,o.y); ctx.rotate(-.3);
+    ctx.fillStyle='rgba(43,39,35,.15)'; ctx.beginPath(); ctx.ellipse(2,12,16,4,0,0,7); ctx.fill();
+    ctx.strokeStyle=INK; ctx.lineWidth=1.8;
+    for(let k=0;k<3;k++){ ctx.fillStyle=blink?'#FF8A65':'#D84332'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(-12+k*8,-10,7,20,2): ctx.rect(-12+k*8,-10,7,20); ctx.fill(); ctx.stroke(); ctx.fillStyle='#F2C230'; ctx.fillRect(-12+k*8,-2,7,3); }
+    ctx.beginPath(); ctx.moveTo(0,-10); ctx.quadraticCurveTo(4,-18,1,-22); ctx.stroke();
+    for(let k=0;k<4;k++){ ctx.fillStyle=pick(['#F2C230','#FF8A65','#FFF3B0']); ctx.beginPath(); ctx.arc(1+(Math.random()-.5)*10,-23+(Math.random()-.5)*10,1.6,0,7); ctx.fill(); }
+    ctx.restore();
+    if(o.fuse<1.2){ ctx.strokeStyle='rgba(216,67,50,.35)'; ctx.setLineDash([5,5]); ctx.lineWidth=2; ctx.beginPath(); ctx.arc(o.x,o.y,85,0,7); ctx.stroke(); ctx.setLineDash([]); }
+  }
   function drawAbu(){
-    const r=ar(), jig=frozen? (Math.random()-.5)*3 : Math.sin(walked/7)*2, ax=x+jig, y=ay();
-    ctx.strokeStyle='#C8452F'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(ax,y+r*.9); ctx.quadraticCurveTo((ax+W/2)/2,H-20,W/2,H+10); ctx.stroke();   // 牽繩
+    const r=ar(), run=speed/60, jig=freezeT>0? (Math.random()-.5)*4 : Math.sin(walked/(9-Math.min(5,run)))*2, ax=x+jig, y=ay()+(bump>0? -Math.sin(bump*Math.PI)*14:0);
+    const taut=want>.6;                                          // 越想回家，牽繩拉得越緊
+    ctx.strokeStyle='#C8452F'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(ax,y+r*.9); taut? ctx.lineTo(W/2,H+10) : ctx.quadraticCurveTo((ax+W/2)/2,H-20,W/2,H+10); ctx.stroke();
     ctx.fillStyle='rgba(43,39,35,.16)'; ctx.beginPath(); ctx.ellipse(ax,y+r*2.05,r*.9,r*.3,0,0,7); ctx.fill();
     ctx.strokeStyle=INK; ctx.lineWidth=2.5;
-    ctx.fillStyle='#D9772B'; ctx.beginPath(); ctx.ellipse(ax,y+r*1.25,r*.78,r*.9,0,0,7); ctx.fill(); ctx.stroke();              // 身體
-    ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(ax,y+r*1.35,r*.42,r*.6,0,0,7); ctx.fill();                              // 白肚子
-    const wag=Math.sin(t*(frozen?2:12))*.5;                                                                                           // 捲尾巴
+    const leg=Math.sin(t*(6+run*3))*r*.18; ctx.fillStyle='#D9772B';
+    [[-.45,leg],[.45,-leg]].forEach(([lx,o])=>{ ctx.beginPath(); ctx.ellipse(ax+lx*r,y+r*1.95+o*.3,r*.16,r*.24,0,0,7); ctx.fill(); ctx.stroke(); });
+    ctx.beginPath(); ctx.ellipse(ax,y+r*1.25,r*.78,r*.9,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(ax,y+r*1.35,r*.42,r*.6,0,0,7); ctx.fill();
+    const wag=Math.sin(t*(freezeT>0?2:want>.6?20:12))*.5;
     ctx.save(); ctx.translate(ax+r*.6,y+r*1.7); ctx.rotate(wag); ctx.fillStyle='#D9772B'; ctx.beginPath(); ctx.arc(0,0,r*.28,0,7); ctx.fill(); ctx.stroke(); ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.arc(0,0,r*.12,0,7); ctx.fill(); ctx.restore();
-    ctx.save(); ctx.beginPath(); ctx.arc(ax,y,r+4,0,7); ctx.fillStyle= fear>.6? '#EE8597':'#F2C230'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(ax,y,r,0,7); ctx.clip();
+    ctx.save(); ctx.beginPath(); ctx.arc(ax,y,r+4,0,7); ctx.fillStyle= want>.7? '#EE8597':'#F2C230'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(ax,y,r,0,7); ctx.clip();
     const im=F[faceK]; if(im&&im.complete) ctx.drawImage(im,ax-r,y-r,r*2,r*2); ctx.restore();
-    if(fear>.6){ ctx.fillStyle='#7FB3D5'; ctx.beginPath(); ctx.ellipse(ax+r+6,y-r*.4+Math.sin(t*6)*2,3,5,0,0,7); ctx.fill(); }  // 冒冷汗
-    const mw=r*2.4, mx=ax-mw/2, my=y+r*2.35;                                                                                          // 緊張度
-    ctx.fillStyle='rgba(43,39,35,.15)'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(mx,my,mw,7,4): ctx.rect(mx,my,mw,7); ctx.fill();
-    ctx.fillStyle= fear>.6?'#C8452F': fear>.3?'#E3B341':'#7FB36A'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(mx,my,Math.max(0,mw*fear),7,4): ctx.rect(mx,my,mw*fear,7); ctx.fill();
+    if(want>.6){ ctx.fillStyle='#7FB3D5'; ctx.beginPath(); ctx.ellipse(ax+r+6,y-r*.4+Math.sin(t*6)*2,3,5,0,0,7); ctx.fill(); }
+    if(run>2.4){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2.5; for(let k=0;k<3;k++){ const lx=ax-r*.8+k*r*.8; ctx.beginPath(); ctx.moveTo(lx,y+r*2.3); ctx.lineTo(lx,y+r*2.3+10+run*3); ctx.stroke(); } }   // 跑很快的風線
     return {ax,y,r};
   }
+  function hud(){
+    const m=Math.floor(walked/PX_M), best=S.best.walkM||0, pz=1+.16*Math.max(0,1-(t-lastM)*4);
+    ctx.save(); ctx.translate(W/2,H*.1); ctx.scale(pz,pz); ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='bold 13px "Huninn",sans-serif'; ctx.fillStyle=INK; ctx.fillText('散步',0,-28);
+    ctx.font='bold 44px "Huninn",sans-serif'; ctx.lineWidth=6; ctx.strokeStyle=INK; ctx.lineJoin='round';
+    ctx.strokeText(`${m} 公尺`,0,4); ctx.fillStyle= best&&m>best? '#F2C230' : '#FFFDF7'; ctx.fillText(`${m} 公尺`,0,4);
+    if(best){ ctx.font='12px "Huninn",sans-serif'; ctx.fillStyle=INK; ctx.fillText(m>best?'新紀錄！':`最高 ${best} 公尺`,0,32); }
+    ctx.restore();
+    const bx=34, bw=W-bx-40, by=H*.1+54;                               // 想回家：阿布的頭一路往小房子靠近，碰到就衝回家
+    ctx.fillStyle='rgba(255,253,247,.9)'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,bw,14,7): ctx.rect(bx,by,bw,14); ctx.fill(); ctx.stroke();
+    const g=ctx.createLinearGradient(bx,0,bx+bw,0); g.addColorStop(0,'#7FB36A'); g.addColorStop(.55,'#E3B341'); g.addColorStop(1,'#C8452F');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx+2,by+2,Math.max(0,(bw-4)*want),10,5): ctx.rect(bx+2,by+2,(bw-4)*want,10); ctx.fill();
+    ctx.font='bold 12px "Huninn",sans-serif'; ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText('阿布想回家',bx,by-11);
+    ctx.font='20px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='left'; ctx.fillText('🏠',bx+bw+4,by+6);
+    const fx=bx+(bw-4)*want, im=F['face_65'], rr=10+(want>.7?Math.sin(t*20)*1.5:0);
+    ctx.save(); ctx.beginPath(); ctx.arc(fx,by+7,rr+2,0,7); ctx.fillStyle=want>.7?'#EE8597':'#F2C230'; ctx.fill(); ctx.beginPath(); ctx.arc(fx,by+7,rr,0,7); ctx.clip(); if(im.complete) ctx.drawImage(im,fx-rr,by+7-rr,rr*2,rr*2); ctx.restore();
+  }
   function frame(ts){
-    const dt=Math.min(.05,(ts-last)/1000||0); last=ts; if(phase==='walk') t+=dt;
-    const sp= frozen||phase!=='walk'? 0 : 70;
-    if(phase==='walk'){
-      walked+=sp*dt;
-      spawnT-=sp?dt:0; if(spawnT<=0){ spawn(); spawnT=Math.max(.7,1.35-t*.012); }
-      x+=(tx-x)*Math.min(1,dt*8);
-      let near=0;                                                // 越靠近人群越緊張
-      things.forEach(o=>{ o.y+=sp*dt; o.x+=(o.vx||0)*dt; if(o.m) o.m.forEach(p=>{ const d=Math.hypot(o.x+p.dx-x,o.y+p.dy-ay()); if(d<R) near+=(1-d/R); }); });
-      if(frozen){
-        if(holding){ fear=Math.max(0,fear-.55*dt); if(Math.random()<dt*6) hearts.push({x:x+(Math.random()-.5)*40,y:ay()-ar(),v:1}); }
-        if(fear<.3){ frozen=false; faceK='face_60'; talk('好…我們走吧',1.4); tone(660,.12,'triangle',.1,200); }
-      }else{
-        fear= near>0? Math.min(1,fear+near*.3*dt) : Math.max(0,fear-.3*dt);
-        faceK= fear>.6? 'face_143' : fear>.3? 'face_65' : (faceK==='face_60'&&sayT>0? 'face_60':'face_65');
-        if(fear>.55&&Math.random()<dt*.8&&sayT<=0) talk(pick(['人好多…','我想回家','不要過去啦']),1.2);
-        if(fear>=1){ frozen=true; freezes++; faceK='face_143'; talk('（定住不動）',2.2); sfx.bad(); if(navigator.vibrate) try{navigator.vibrate(80)}catch(e){} }
-      }
-      for(let i=things.length-1;i>=0;i--){
-        const o=things[i];
-        if((o.k==='grass'||o.k==='bis')&&Math.hypot(o.x-x,o.y-ay())<ar()+16){
-          things.splice(i,1); const v=o.k==='bis'?2:1; pts+=v; fear=Math.max(0,fear-.18); sfx.good(); faceK='face_60'; talk(o.k==='bis'?'餅乾！':'草地好香',1); upd(); continue;
+    const dt=Math.min(.05,(ts-last)/1000||0); last=ts; t+=dt;
+    freezeT=Math.max(0,freezeT-dt); bumpCD=Math.max(0,bumpCD-dt); bump=Math.max(0,bump-dt*2.5); shake=Math.max(0,shake-dt);
+    if(phase==='walk'||phase==='bolt'){
+      const m0=walked/PX_M;
+      speed= phase==='bolt'? 420 : freezeT>0? 0 : 80+Math.min(70,m0*.5)+want*190;            // 越想回家走越快
+      walked+=speed*dt; if(Math.floor(walked/PX_M/10)>Math.floor(m0/10)) lastM=t;
+      if(phase==='walk'){
+        spawnT-=dt*(speed/90); if(spawnT<=0){ spawn(); spawnT=Math.max(.55,1.25-m0/400); }
+        x+=(tx-x)*Math.min(1,dt*8);
+        let near=0, touch=false;
+        things.forEach(o=>{ o.y+=speed*dt; o.x+=(o.vx||0)*dt; if(o.m) o.m.forEach(p=>{ const d=Math.hypot(o.x+p.dx-x,o.y+p.dy-ay()); if(d<R) near+=(1-d/R); if(d<ar()+8) touch=true; }); });
+        want= near>0? Math.min(1,want+near*.16*dt) : Math.max(0,want-.04*dt);
+        want=Math.min(1,want+.006*dt);                               // 走久了本來就會慢慢想回家
+        if(touch&&!bumpCD){ freezeT=1; bumpCD=1.8; want=Math.min(1,want+.1); bump=1; talk(pick(['（嚇到定住）','不要碰我！','人好多…']),1.1); sfx.bad(); }
+        for(let i=things.length-1;i>=0;i--){
+          const o=things[i];
+          if(o.k==='boom'){ o.fuse-=dt; if(o.fuse<=0){
+            things.splice(i,1); blasts.push({x:o.x,y:o.y,v:0}); shake=.5; tone(90,.4,'sawtooth',.18,-50); tone(1400,.15,'square',.06,-900);
+            if(Math.hypot(o.x-x,o.y-ay())<85){ want=Math.min(1,want+.3); freezeT=.8; bump=1; talk('砰！！我要回家！',1.4); if(navigator.vibrate) try{navigator.vibrate(120)}catch(e){} }
+            continue; } }
+          if((o.k==='grass'||o.k==='bis')&&Math.hypot(o.x-x,o.y-ay())<ar()+16){
+            things.splice(i,1); want=Math.max(0,want-(o.k==='bis'?.16:.08)); sfx.good(); faceK='face_60'; talk(o.k==='bis'?'餅乾！放鬆了':'草地好香',1); continue;
+          }
+          if(o.y>H+80||o.x<-60||o.x>W+60) things.splice(i,1);
         }
-        if(o.y>H+80||o.x<-60||o.x>W+60) things.splice(i,1);
+        faceK= freezeT>0||want>.7? 'face_143' : (faceK==='face_60'&&sayT>0)? 'face_60' : want>.4? 'face_65':'face_66';
+        if(want>.7&&sayT<=0&&Math.random()<dt) talk(pick(['我要回家','快走快走','這裡好可怕']),1.1);
+        if(want>=1){ phase='bolt'; boltT=1.6; talk('我要回家！！',1.6); bark(3); }
+      }else{
+        things.forEach(o=>{ o.y+=speed*dt; }); boltT-=dt; if(boltT<=0){ phase='end'; finish(); }
       }
-      if(walked>=GOAL){ phase='end'; finish(true); }
-      else if(t>=LIMIT){ phase='end'; finish(false); }
-      upd();
     }
+    ctx.save(); if(shake>0) ctx.translate((Math.random()-.5)*shake*16,(Math.random()-.5)*shake*16);
     drawScene();
-    things.forEach(o=>{                                          // 人群周圍淡淡的暖色光暈＝會讓阿布緊張的範圍
+    things.forEach(o=>{
       if(!o.m) return;
       const rr=o.k==='crowd'? R*.95 : R*.6, g=ctx.createRadialGradient(o.x,o.y,rr*.2,o.x,o.y,rr);
       g.addColorStop(0,'rgba(238,133,151,.34)'); g.addColorStop(1,'rgba(238,133,151,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(o.x,o.y,rr,0,7); ctx.fill();
     });
     ctx.font='24px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    things.forEach(o=>{ if(o.k==='grass') ctx.fillText('🌿',o.x,o.y); else if(o.k==='bis'&&bis.complete) ctx.drawImage(bis,o.x-15,o.y-15,30,30); });
+    things.forEach(o=>{ if(o.k==='grass') ctx.fillText('🌿',o.x,o.y); else if(o.k==='bis'&&bis.complete) ctx.drawImage(bis,o.x-15,o.y-15,30,30); else if(o.k==='boom') drawBoom(o); });
     const ppl=[]; things.forEach(o=>{ if(o.m) o.m.forEach(p=>ppl.push([o.x+p.dx,o.y+p.dy,p,o.k==='walker'])); });
     ppl.sort((a,b)=>a[1]-b[1]).forEach(([px,py,p,wk])=>person(px,py,p,wk));
-    things.forEach(o=>{                                          // 人群偶爾冒出聊天泡泡
+    things.forEach(o=>{
       if(o.k!=='crowd') return; o.ct+=1/60; if(Math.sin(o.ct*1.4)<.2) return;
       ctx.font='12px "Huninn",sans-serif'; const tw=ctx.measureText(o.chat).width+14, bx=o.x-tw/2, by=o.y-58;
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=1.5; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,20,8): ctx.rect(bx,by,tw,20); ctx.fill(); ctx.stroke();
       ctx.fillStyle=INK; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(o.chat,o.x,by+10);
     });
+    blasts=blasts.filter(b=>{ b.v+=dt*2.2; const rr=20+b.v*80; ctx.globalAlpha=Math.max(0,1-b.v);
+      ctx.fillStyle='#FFF3B0'; ctx.beginPath(); ctx.arc(b.x,b.y,rr,0,7); ctx.fill(); ctx.strokeStyle='#D84332'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(b.x,b.y,rr*.8,0,7); ctx.stroke();
+      ctx.fillStyle='#D84332'; ctx.font='bold 26px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.fillText('砰！',b.x,b.y-rr*.3); ctx.globalAlpha=1; return b.v<1; });
     const a=drawAbu();
-    ctx.font='20px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    hearts=hearts.filter(hh=>{ hh.y-=40*dt; hh.v-=dt; ctx.globalAlpha=Math.max(0,hh.v); ctx.fillText('💗',hh.x,hh.y); ctx.globalAlpha=1; return hh.v>0; });
+    ctx.restore();
     if(sayT>0){ sayT-=dt; ctx.font='15px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, bx=Math.max(8,Math.min(W-tw-8,a.ax-tw/2)), by=a.y-a.r-44;
-      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,30,12): ctx.rect(bx,by,tw,30); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.fillText(say,bx+10,by+15); ctx.textAlign='center'; }
-    if(frozen){ ctx.font='bold 17px "Huninn",sans-serif'; const msg='阿布定住了，按住畫面摸摸他'; const tw=ctx.measureText(msg).width+28;
-      ctx.fillStyle='rgba(255,253,247,.94)'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(W/2-tw/2,H*.3-20,tw,40,14): ctx.rect(W/2-tw/2,H*.3-20,tw,40); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.fillText(msg,W/2,H*.3); }
-    ctx.fillStyle='rgba(43,39,35,.12)'; ctx.fillRect(12,12,W-24,8); ctx.fillStyle='#D9772B'; ctx.fillRect(12,12,(W-24)*Math.max(0,1-t/LIMIT),8);
+      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,30,12): ctx.rect(bx,by,tw,30); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,bx+10,by+15); }
+    if(phase!=='intro') hud();
     if(phase!=='over') raf=requestAnimationFrame(frame);
   }
-  function finish(ok){
+  function finish(){
     phase='over'; cancelAnimationFrame(raf);
-    const total=pts+(ok?5:0)+(ok&&!freezes?3:0), bones=Math.max(1,Math.min(12,Math.ceil(total/2)));
-    const best=Math.max(S.best.walk||0,total); S.best.walk=best; save();
-    const text= ok? (freezes? `走到安靜的草地了！路上定住 ${freezes} 次，謝謝你一直陪著他。` : '一次都沒有定住，阿布今天好勇敢！') : '人太多了，今天先回家休息吧。';
-    winDialog({title: ok?'到草地了！':'今天先回家', text:`${text}（${total} 分）`, bones, faceKey: ok?'face_66':'face_62', again:()=>go('walk')});
+    const m=Math.floor(walked/PX_M), bones=Math.max(1,Math.min(12,Math.floor(m/20)));      // 每 20 公尺換 1 片餅乾
+    const best=Math.max(S.best.walkM||0,m), nb=best>(S.best.walkM||0); S.best.walkM=best; save();
+    winDialog({title:'阿布拖著你衝回家了！', text:`今天散步了 ${m} 公尺${nb?'，新紀錄！':`（最高 ${best} 公尺）`}<br>每 20 公尺換 1 片餅乾。`, bones, faceKey:'face_62', again:()=>go('walk')});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>左右拖，帶阿布繞開人群。<br>定住了就按住摸摸他。</p><button class="btn" id="go">出門散步</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>左右拖，閃開人群和鞭炮。<br>阿布越想回家，就走得越快！</p><button class="btn" id="go">出門散步</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); phase='walk'; t=0; talk('慢慢走就好',1.4); };
   }
   last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
