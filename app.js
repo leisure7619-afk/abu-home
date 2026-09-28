@@ -473,7 +473,7 @@ function Games(){
     <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>點兩塊交換位置，拼回原來的照片</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="bowl"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>幫阿布裝飯</b><span>按住倒飼料，倒到剛剛好的份量</span></div><span class="reward">+3~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="quiz"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>阿布能不能吃？</b><span>葡萄可以嗎？地瓜呢？考考你</span></div><span class="reward">+1~6<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到家了卻不肯下車</span></div><span class="reward">+1~13<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~13<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多，帶他繞開人群</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
@@ -1105,7 +1105,7 @@ function Bowl(){
 
 /* ================= 小遊戲：阿布去兜風（最愛坐車，最不愛下車） =================
  * 兜風 35 秒：點車子上方／下方換車道，吃到風、狗朋友、香香的東西加分，閃開施工和坑洞。
- * 到家了：阿布賴在車上不肯下車——狂點畫面幫他賴著，賴贏了多送餅乾，還會再繞一圈。 */
+ * 到目的地：阿布賴在車上不肯下車——連打畫面把他拉下車，成功多送餅乾；拉不動就只好再繞一圈。 */
 function Car(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('阿布去兜風','carstat'));
   const wrap=h(`<div class="catch-wrap car-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
@@ -1117,18 +1117,18 @@ function Car(){
   const BAD=[['🚧','唉唷！施工中'],['🕳️','好顛喔…']];
   const DRIVE=35, TUG=6, EXTRA=8;
   let W=0,H=0,dpr=1, lane=1, carY=0, items=[], score=0, lives=3, t=0, last=0, raf=0, phase='intro', speed=0, spawnT=0, dist=0;
-  let faceK='face_65', faceT=0, say='', sayT=0, shake=0, tug=.55, tugT=0, won=false, houseX=0, endAt=0, driveEnd=DRIVE;
+  let pulled=false, faceK='face_65', faceT=0, say='', sayT=0, shake=0, tug=.55, tugT=0, won=false, houseX=0, endAt=0, driveEnd=DRIVE;
   function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); if(!carY) carY=laneY(lane); }
   const roadTop=()=>H*.42, laneH=()=>(H-18-roadTop())/3, laneY=i=>roadTop()+laneH()*(i+.5);
   size(); const ro=new ResizeObserver(size); ro.observe(wrap);
-  const stat=$('#carstat'); const upd=()=>{ stat.textContent= phase==='tug'? '賴在車上！' : `${score} 分　${'♥'.repeat(lives)}${'♡'.repeat(3-lives)}`; }; upd();
+  const stat=$('#carstat'); const upd=()=>{ stat.textContent= phase==='tug'? '拉阿布下車！' : `${score} 分　${'♥'.repeat(lives)}${'♡'.repeat(3-lives)}`; }; upd();
   const talk=(txt,k,ms=1.2)=>{ say=txt; sayT=ms; if(k){ faceK=k; faceT=ms; } };
 
   /* 換車道：點車子上面往上、點下面往下（也可以滑） */
   let y0=null;
   wrap.addEventListener('pointerdown',e=>{
     e.preventDefault(); ac();
-    if(phase==='tug'){ tug=Math.min(1,tug+.075); shake=.12; if(Math.random()<.3) tone(500+Math.random()*200,.05,'triangle',.08,120); return; }
+    if(phase==='tug'){ tug=Math.min(1,tug+.07); if(tug>=1) pulled=true; shake=.12; if(Math.random()<.3) tone(500+Math.random()*200,.05,'triangle',.08,120); return; }
     if(phase!=='drive'&&phase!=='extra') return;
     const r=wrap.getBoundingClientRect(); y0=e.clientY;
     const y=e.clientY-r.top; lane=Math.max(0,Math.min(2,lane+(y<carY?-1:1))); sfx.flip();
@@ -1159,7 +1159,7 @@ function Car(){
     const x=houseX, base=roadTop()-8, w=110, hh=78;
     ctx.fillStyle='#FBEBD6'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=2.5; ctx.fillRect(x,base-hh,w,hh); ctx.strokeRect(x,base-hh,w,hh);
     ctx.fillStyle='#D9772B'; ctx.beginPath(); ctx.moveTo(x-10,base-hh); ctx.lineTo(x+w/2,base-hh-40); ctx.lineTo(x+w+10,base-hh); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#9C6B45'; ctx.fillRect(x+w/2-13,base-38,26,38); ctx.fillStyle='#2B2723'; ctx.font='bold 13px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.fillText('家',x+w/2,base-hh+22);
+    ctx.fillStyle='#9C6B45'; ctx.fillRect(x+w/2-13,base-38,26,38); ctx.fillStyle='#2B2723'; ctx.font='bold 13px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.fillText('目的地',x+w/2,base-hh+22);
   }
   /* 車子（側面、往右開），阿布從後車窗探出頭，風吹得臉晃來晃去 */
   function drawCar(dt){
@@ -1198,19 +1198,19 @@ function Car(){
       const goal=phase==='drive'? 170+el*4 : 230;
       speed+=(goal-speed)*Math.min(1,dt*2);
       spawnT-=dt; if(spawnT<=0){ spawn(); spawnT=Math.max(.55,1.1-t*.014); }
-      if(phase==='drive'&&t>DRIVE-4&&t-dt<=DRIVE-4) talk('快到家了…不要啦','face_143',2);
+      if(phase==='drive'&&t>DRIVE-4&&t-dt<=DRIVE-4) talk('快到了…我還不想下車','face_143',2);
       if(phase==='drive'&&t>=DRIVE){ phase='arrive'; items=[]; houseX=W+40; }
       if(phase==='extra'&&t>=endAt+EXTRA){ phase='done'; finish(); }
     }else if(phase==='arrive'){
       speed=Math.max(0,speed-120*dt); houseX-=speed*dt;
       const stopX=W*.32-55; if(houseX<stopX){ houseX=stopX; speed=0; }
-      if(speed===0){ phase='tug'; tugT=0; tug=.55; upd(); talk('我不要下車！','face_143',TUG); bark(2); }
+      if(speed===0){ phase='tug'; tugT=0; tug=.4; upd(); talk('我不要下車！','face_143',TUG); bark(2); }
     }else if(phase==='tug'){
-      tugT+=dt; tug-=(.16+.16*tugT/TUG)*dt; shake=Math.max(0,shake-dt);
-      if(tug<=0||tugT>=TUG){
-        won=tug>.5; phase=won?'extra':'done'; upd();
-        if(won){ sfx.win(); bark(3); talk('賴贏了！再繞一圈～','face_66',2.5); endAt=t; houseX=0; }
-        else { sfx.bad(); talk('被抱下車了…哼','face_62',2.5); setTimeout(finish,1400); }
+      tugT+=dt; tug=Math.max(0,tug-(.12+.12*tugT/TUG)*dt); shake=Math.max(0,shake-dt);   // 阿布一直往車裡縮
+      if(pulled||tugT>=TUG){
+        won=pulled; upd();
+        if(won){ phase='done'; sfx.win(); bark(2); talk('哼…好啦，下車就下車','face_62',2.5); setTimeout(finish,1500); }
+        else { phase='extra'; sfx.bad(); bark(3); talk('拉不動！只好再繞一圈～','face_66',2.5); endAt=t; houseX=0; }
       }
     }
     dist+=speed*dt;
@@ -1226,7 +1226,7 @@ function Car(){
         if(it.bad){ lives=Math.max(0,lives-1); sfx.bad(); shake=.4; talk(it.line,'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){} }
         else{ score+=it.val; sfx.good(); talk(it.line,it.val>=3?'face_68':'face_60',1); }
         upd();
-        if(lives<=0&&phase==='drive'){ phase='arrive'; items=[]; houseX=W+40; talk('好啦好啦，回家了…','face_62',2); }
+        if(lives<=0&&phase==='drive'){ phase='arrive'; items=[]; houseX=W+40; talk('好啦，直接去目的地…','face_62',2); }
       }else if(it.x<-40) items.splice(i,1);
     }
     const c=drawCar(dt);
@@ -1240,11 +1240,11 @@ function Car(){
       const bw=W-48, bx=24, by=H*.2;
       ctx.fillStyle='rgba(255,253,247,.88)'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(12,by-40,W-24,94,16): ctx.rect(12,by-40,W-24,94); ctx.fill();
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,bw,22,11): ctx.rect(bx,by,bw,22); ctx.fill(); ctx.stroke();
-      ctx.fillStyle= tug>.5? '#F2C230':'#EE8597'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx+2,by+2,(bw-4)*tug,18,9): ctx.rect(bx+2,by+2,(bw-4)*tug,18); ctx.fill();
-      ctx.strokeStyle='#2B2723'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(bx+bw/2,by-4); ctx.lineTo(bx+bw/2,by+26); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle= tug>.7? '#F2C230':'#EE8597'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx+2,by+2,(bw-4)*tug,18,9): ctx.rect(bx+2,by+2,(bw-4)*tug,18); ctx.fill();
+      ctx.strokeStyle='#2B2723'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(bx+bw-2,by-4); ctx.lineTo(bx+bw-2,by+26); ctx.stroke(); ctx.setLineDash([]);
       ctx.font='bold 17px "Huninn",sans-serif'; ctx.fillStyle='#2B2723'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-      ctx.fillText(`狂點畫面，幫阿布賴在車上！ ${Math.max(0,Math.ceil(TUG-tugT))}`,W/2,by-12);
-      ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillText('家人：下車囉～',bx,by+40); ctx.textAlign='right'; ctx.fillText('阿布：不要！',bx+bw,by+40);
+      ctx.fillText(`連打畫面，把阿布拉下車！ ${Math.max(0,Math.ceil(TUG-tugT))}`,W/2,by-12);
+      ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillText('阿布：不要！',bx,by+40); ctx.textAlign='right'; ctx.fillText('下車囉～',bx+bw,by+40);
     }
     if(phase!=='over') raf=requestAnimationFrame(frame);
   }
@@ -1252,11 +1252,11 @@ function Car(){
     if(phase==='over') return; phase='over'; cancelAnimationFrame(raf);
     const base=Math.max(1,Math.min(10,Math.floor(score/4))), bones=base+(won?3:0);
     const best=Math.max(S.best.car||0,score), nb=best>(S.best.car||0); S.best.car=best; save();
-    winDialog({title: won?'賴贏了，多繞一圈！':'到家了', text:`兜風拿到 ${score} 分${nb?'，新紀錄':`（最高 ${best} 分）`}${won?'。阿布成功賴在車上，多送 3 片餅乾':'。阿布被抱下車，一臉不甘願'}`, bones, faceKey: won?'face_66':'face_62', again:()=>go('car')});
+    winDialog({title: won?'成功拉下車！':'多繞了一圈', text:`兜風拿到 ${score} 分${nb?'，新紀錄':`（最高 ${best} 分）`}${won?'。阿布被拉下車，一臉不甘願，多送 3 片餅乾':'。阿布死賴在車上，最後還是多兜了一圈'}`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car')});
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
-    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道，吃到 💨 🐕 🍗 加分，閃開 🚧 🕳️。<br>到家時阿布會賴著不下車，狂點畫面幫他賴贏，還能再繞一圈！</p><button class="btn" id="go">出發！</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道，吃到 💨 🐕 🍗 加分，閃開 🚧 🕳️。<br>到目的地時阿布會賴著不下車，連打畫面把他拉下車！</p><button class="btn" id="go">出發！</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_66',1.2); raf=requestAnimationFrame(frame); };
   }
   setTimeout(intro,50);
