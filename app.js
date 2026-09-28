@@ -664,7 +664,7 @@ function Album(){
   const g=$('#grid');
   const ph=list.filter(p=>!isVid(p)), vs=list.filter(isVid), open=ph.filter(isOpen).length;
   $('#prog').textContent = PH_STATE==='loading'&&!PH.length? '從雲端硬碟讀照片中…'
-    : passOn()? `共 ${ph.length} 張${vs.length?`、影片 ${vs.length} 支`:''}，現在全部都能看` : `已解鎖 ${open} / ${ph.length} 張${vs.length?`、影片 ${vs.filter(isOpen).length} / ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
+    : passOn()? `共 ${ph.length} 張${vs.length?`、影片 ${vs.length} 支`:''}，已開通` : `已解鎖 ${open} / ${ph.length} 張${vs.length?`、影片 ${vs.filter(isOpen).length} / ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
   const yearOf=p=>p.sample? '' : p.taken? String(new Date(p.taken).getFullYear()) : '?';
   const perYear={}; list.forEach(p=>{ const y=yearOf(p); perYear[y]=(perYear[y]||0)+1; });
   let year=null;
@@ -737,21 +737,17 @@ function longPress(el,fn){
 /* 看相簿：2 片餅乾看 10 分鐘，期間所有照片、影片都能看（只有待在相簿／日常、螢幕亮著才扣時間） */
 function buyPass(p){
   if(S.bones<PASS_COST){ sfx.bad(); toast(`還差 ${PASS_COST-S.bones} 片餅乾，去玩小遊戲吧`,2400); return; }
-  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>看 ${PASS_MIN} 分鐘？</h3><p>用 ${PASS_COST} 片餅乾，${PASS_MIN} 分鐘內所有照片和影片都能看。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">開始看</button><button class="btn ghost" data-close>先不要</button></div>`);
+  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>開通 ${PASS_MIN} 分鐘？</h3><p>投 ${PASS_COST} 片餅乾，相簿和日常的照片、影片全部開通 ${PASS_MIN} 分鐘。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">投 ${PASS_COST} 片開通</button><button class="btn ghost" data-close>先不要</button></div>`);
   m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-PASS_COST); S.passLeft=(S.passLeft||0)+PASS_MIN*60; save(); sfx.win(); bark(1); renderPass(); view(p); };
 }
 let passEnded=false;
-function renderPass(){
-  const el=$('#passPill'); if(!el) return;
-  const on=passOn()&&(current==='album'||current==='food');
-  el.hidden=!on; if(on){ const t=S.passLeft; el.querySelector('span').textContent=`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; }
-}
+function renderPass(){}                                            // 不顯示倒數（太有壓力），時間只在背後計
 setInterval(()=>{
   if(passOn()&&!document.hidden&&(current==='album'||current==='food')&&!document.querySelector('.reel-ov')){
     S.passLeft--; if(S.passLeft<=0){ S.passLeft=0; passEnded=true; } if(S.passLeft%5===0) save(); renderPass();
   }
   if(passEnded&&!document.querySelector('.overlay,.reel-ov')){          // 時間到：正在看的讓它看完，關掉之後才蓋回白霧
-    passEnded=false; save(); toast(`${PASS_MIN} 分鐘到了，想再看要 ${PASS_COST} 片餅乾`,2600);
+    passEnded=false; save(); toast(`開通時間到了，想再看可以再投 ${PASS_COST} 片餅乾`,2600);
     if(current==='album'||current==='food') go(current,true);
   }
 },1000);
