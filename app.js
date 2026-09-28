@@ -18,7 +18,6 @@ const SHAPES = ['strawberry','bear','bone','lion','apple','rabbit','grape','monk
 const FLAVORS = [{n:'牛肉',c:'#9C5A2E'},{n:'羊肉',c:'#BF8543'},{n:'雞肉',c:'#DDB067'}];
 const NEW_DAYS = 7;
 const FREE_OPEN = 4;
-const LEVELS = ['初次見面','認識一下','好朋友','散步夥伴','最愛的家人','阿布的全世界'];
 const LINES = {
   idle:['汪！','摸摸頭～','今天要去散步嗎？','（歪頭）','有零食嗎？','我乖乖的喔','尾巴搖搖搖'],
   pet:['嘿嘿～','再摸一下！','好舒服','汪汪！','最喜歡你了','耳朵後面也要'],
@@ -108,6 +107,7 @@ async function loadPhotos(fresh){
     if(j.feeds){ FEEDS=j.feeds; lsSet('abu-feeds',FEEDS); }
     if(Array.isArray(j.reels)){ REELS=j.reels; REELS_ON_SERVER=true; lsSet('abu-reels',REELS); } else REELS_ON_SERVER=false;
     if(j.needs) setNeeds(j.needs);
+    if(current==='home'){ lastAgeLv=0; renderLove(); }            // 照片到了，換上這個年紀的阿布
     lsSet('abu-photos',{photos:PH,config:CONFIG});
     loadEars();
   }catch(e){
@@ -181,9 +181,9 @@ function petLove(n){                                          // 摸頭的好感
   S.halfAcc=(S.halfAcc||0)+n/2; const k=Math.floor(S.halfAcc); S.halfAcc-=k; if(k) addLove(k); else save();
 }
 function addLove(n){
-  const before=Math.floor(S.love/40); S.love+=n; const up=Math.floor(S.love/40)-before;
+  const before=lvOf(S.love); S.love+=n; const up=lvOf(S.love)-before;
   save(); if(current==='home') renderLove();
-  if(up>0){ const g=LEVEL_GIFT*up, L=levelInfo(); addBones(g); setTimeout(()=>{ sfx.win(); toast(`升到 Lv.${L.lv}「${L.title}」！阿布送你 ${g} 片餅乾`,2800); },400); }
+  if(up>0){ const g=LEVEL_GIFT*up, L=levelInfo(); addBones(g); setTimeout(()=>{ sfx.win(); toast(L.lv<=AGE_LV? `阿布長大了！Lv.${L.lv}「${L.title}」，送你 ${g} 片餅乾` : `升到 Lv.${L.lv}！阿布送你 ${g} 片餅乾`,2800); },400); }
 }
 function fmtDate(t){ if(!t) return ''; const d=new Date(t); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
 
@@ -276,9 +276,43 @@ function renderNeeds(){
 }
 
 /* ================= 主畫面 ================= */
-function levelInfo(){ const per=40; const lv=Math.floor(S.love/per); return {lv:lv+1,title:LEVELS[Math.min(lv,LEVELS.length-1)],pct:(S.love%per)/per*100,left:per-S.love%per}; }
+/* 等級＝陪阿布長大：越後面越難（第 n 級要 40×n 點），Lv.1 是 2 個月大的幼犬，Lv.15 長到現在的阿布 */
+const AGE_LV=15;
+const lvOf=L=>{ let n=1; while(20*(n+1)*n<=L) n++; return n; };
+function birthDate(){
+  const n=(CONFIG.birthday||'').match(/\d+/g);
+  return n&&n.length>=3&&n[0].length===4? new Date(+n[0],n[1]-1,+n[2]) : new Date(2019,5,15);
+}
+const monthsOld=t=>(t-birthDate())/(30.44*864e5);
+function ageMonthsAt(lv){ const cur=Math.floor(monthsOld(Date.now())); return lv>=AGE_LV? cur : Math.round(2+(lv-1)*(cur-2)/(AGE_LV-1)); }
+function ageLabel(m){ if(m<12) return `${m} 個月大`; const y=Math.floor(m/12); return m%12>=6? `${y} 歲半` : `${y} 歲`; }
+function levelInfo(){
+  const lv=lvOf(S.love), base=20*lv*(lv-1), per=40*lv, m=ageMonthsAt(lv);
+  return {lv, m, title: lv>=AGE_LV? `現在的阿布（${ageLabel(m)}）` : `${ageLabel(m)}的阿布`, pct:(S.love-base)/per*100, left:base+per-S.love};
+}
+/* 小相框：輪播「這個年紀」的阿布照片（拍攝日期前後 4 個月；沒有就挑最接近的） */
+function agePhotos(m){
+  const all=pool().filter(p=>!isVid(p)&&!p.sample&&p.taken);
+  if(!all.length) return [];
+  const d=p=>Math.abs(monthsOld(p.taken)-m), near=all.filter(p=>d(p)<=4);
+  return near.length? near : all.slice().sort((a,b)=>d(a)-d(b)).slice(0,6);
+}
+let ageT=0, ageIdx=0;
+function renderAgePic(){
+  const el=$('#agePic'); if(!el) return;
+  const L=levelInfo(), list=agePhotos(L.m); clearInterval(ageT);
+  const show=()=>{ if(!document.body.contains(el)) return clearInterval(ageT);
+    const p=list[ageIdx++%list.length]; el.innerHTML=pimg(p,240,'alt=""'); el.dataset.id=p.id; };
+  if(!list.length){ el.innerHTML=`<img src="${face(FACES.normal)}" alt="">`; delete el.dataset.id; return; }
+  ageIdx=Math.floor(Math.random()*list.length); show(); if(list.length>1) ageT=setInterval(show,6000);
+  el.onclick=()=>{ const p=pool().find(x=>x.id===el.dataset.id); if(!p) return; sfx.pop();
+    const a=ageLabel(Math.max(0,Math.round(monthsOld(p.taken))));
+    modal(`<h3>${a}的阿布</h3>${pimg(p,1200,'class="big-photo" alt=""')}<p>${p.cap?esc(p.cap)+'<br>':''}<small>${fmtDate(p.taken)}</small></p><button class="btn" data-close>好可愛</button>`); };
+}
+let lastAgeLv=0;
 function renderLove(){
   const L=levelInfo(), el=$('#love'); if(!el) return;
+  if(L.lv!==lastAgeLv||!$('#agePic').firstChild){ lastAgeLv=L.lv; renderAgePic(); }
   el.querySelector('.lv').textContent='Lv.'+L.lv;
   el.querySelector('.title').textContent=L.title;
   el.querySelector('.num').textContent='再 '+L.left+' 點升級';
@@ -325,7 +359,7 @@ function greeting(){
 function Home(){
   const s=h(`<section class="screen">
     <div id="lostBox"></div>
-    <div class="love" id="love"><span class="lv">Lv.1</span><span class="title"></span><span class="num"></span><div class="bar"><i></i></div></div>
+    <div class="love" id="love"><div class="agepic" id="agePic"></div><span class="lv">Lv.1</span><span class="title"></span><span class="num"></span><div class="bar"><i></i></div></div>
     <div class="needs" id="needs"><div class="need" id="needF"><span>🍖 飽足</span><div class="nbar"><i></i></div></div><div class="need" id="needW"><span>💧 水分</span><div class="nbar"><i></i></div></div><div class="need" id="needP"><span>🌳 尿尿</span><div class="nbar"><i></i></div></div><small id="needWho"></small></div>
     <div class="stage">
       <div class="bubble" id="bubble">汪！</div>
