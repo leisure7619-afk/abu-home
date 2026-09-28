@@ -220,11 +220,11 @@ function go(tab,keepScroll){
   if(cleanup){ cleanup(); cleanup=null; }
   current=tab;
   if(tab==='games'||tab==='food') backTo=tab;
-  const navTab={memory:backTo,catch:backTo,puzzle:backTo,bowl:backTo,quiz:backTo,car:backTo,walk:backTo}[tab]||tab;
+  const navTab={memory:backTo,catch:backTo,puzzle:backTo,bowl:backTo,quiz:backTo,car:backTo,walk:backTo,stairs:backTo}[tab]||tab;
   document.querySelectorAll('nav button').forEach(b=>b.toggleAttribute('aria-current',false));
   const nb=document.querySelector(`nav button[data-tab="${navTab}"]`); if(nb) nb.setAttribute('aria-current','page');
   main.innerHTML='';
-  ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz,car:Car,walk:Walk})[tab]();
+  ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz,car:Car,walk:Walk,stairs:Stairs})[tab]();
   main.scrollTop=keepScroll? y: 0;
   renderPass();
 }
@@ -244,8 +244,8 @@ const LADDER = [
   { at:1,  faces:['face_65'],             lines:['嘿嘿～','摸摸頭～','（尾巴搖一下）'],     hearts:1, label:'有點開心' },
   { at:4,  faces:['face_143','face_142'], lines:['再摸一下！','耳朵後面也要','還要還要'], hearts:2, label:'開心' },
   { at:8,  faces:['face_60'],             lines:['好舒服～','尾巴停不下來了','嘿嘿嘿'],   hearts:3, label:'很開心' },
-  { at:13, faces:['face_68'],             lines:['最喜歡你了！','汪！汪！','今天最棒了'], hearts:4, label:'超開心' },
-  { at:19, faces:['face_66'],             lines:['汪汪汪！！','開心到飛起來！','全世界最幸福的狗！'], hearts:6, label:'開心到爆炸' },
+  { at:13, faces:['face_68'],             lines:['最喜歡你了！','汪！汪！','今天最棒了','阿布最高！！'], hearts:4, label:'超開心' },
+  { at:19, faces:['face_66'],             lines:['汪汪汪！！','開心到飛起來！','全世界最幸福的狗！','阿布最高！！'], hearts:6, label:'開心到爆炸' },
 ];
 const MELT_AT = 32;
 function tierOf(c){ let t=-1; LADDER.forEach((l,i)=>{ if(c>=l.at) t=i; }); return t; }
@@ -467,7 +467,7 @@ function Home(){
 /* ================= 小遊戲清單 ================= */
 function Games(){
   const s=h(`<section class="screen">
-    <div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布、解鎖回憶照片和阿布短片。</p></div>
+    <div class="album-head"><div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布、解鎖回憶照片和阿布短片。</p></div><button class="btn sm" id="boardBtn">🏆 排行榜</button></div>
     <button class="game-card" data-g="memory"><img class="thumb" src="img/face_60.jpg" alt=""><div><b>回憶翻牌</b><span>翻開兩張一樣的照片</span></div><span class="reward">+3~8<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="catch"><img class="thumb" src="${face('face_68')}" alt=""><div><b>阿布接零食</b><span>左右滑動接住食物，巧克力、葡萄、洋蔥不能吃</span></div><span class="reward">+1~10<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>點兩塊交換位置，拼回原來的照片</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
@@ -475,19 +475,75 @@ function Games(){
     <button class="game-card" data-g="quiz"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>阿布能不能吃？</b><span>葡萄可以嗎？地瓜呢？考考你</span></div><span class="reward">+1~6<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多、怕鞭炮，越緊張越想衝回家</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="stairs"><img class="thumb" src="img/face_stairs.jpg" alt=""><div><b>阿布下樓梯</b><span>一階一階往下跳，別被天花板刺到</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
   main.appendChild(s);
+  $('#boardBtn').onclick=()=>{ sfx.pop(); showBoards(); };
+  renderRecords(); loadBoards();
 }
 function gameBar(title,statId){
   const bar=h(`<div class="gamebar"><button class="back" aria-label="返回"><svg><use href="#i-back"/></svg></button><h2>${title}</h2><span class="stat" id="${statId}"></span></div>`);
   bar.querySelector('.back').onclick=()=>go(backTo);
   return bar;
 }
-function winDialog({title,text,bones,faceKey='face_60',again}){
+function winDialog({title,text,bones,faceKey='face_60',again,rank}){
   sfx.win(); setTimeout(()=>bark(2),500); addBones(bones);
-  const m=modal(`<img class="face-img" src="${face(faceKey)}" alt=""><h3>${title}</h3><p>${text}</p><div class="gain">+${bones}<img class="ico" src="img/biscuit/bear.png" alt=""></div><div class="row"><button class="btn" id="again">再玩一次</button><button class="btn ghost" data-close>${backTo==='food'?'回日常':'回小遊戲'}</button></div>`,()=>go(backTo));
+  const m=modal(`<img class="face-img" src="${face(faceKey)}" alt=""><h3>${title}</h3><p>${text}</p><div class="gain">+${bones}<img class="ico" src="img/biscuit/bear.png" alt=""></div><div class="rankline" id="rankLine"></div><div class="row"><button class="btn" id="again">再玩一次</button><button class="btn ghost" data-close>${backTo==='food'?'回日常':'回小遊戲'}</button></div>`,()=>go(backTo));
   m.el.querySelector('#again').onclick=()=>{ m.el.remove(); again(); };
+  if(rank) postScore(rank.game,rank.score,m.el.querySelector('#rankLine'));
+}
+
+/* ================= 全家排行榜：各玩各的，成績上傳比高低 ================= */
+const GAME_INFO={memory:{n:'回憶翻牌',u:'次',low:1},catch:{n:'阿布接零食',u:'分'},puzzle:{n:'照片拼圖',u:'次',low:1},bowl:{n:'幫阿布裝飯',u:'片'},quiz:{n:'阿布能不能吃',u:'題'},car:{n:'阿布去兜風',u:'秒'},walk:{n:'陪阿布散步',u:'公尺'},stairs:{n:'阿布下樓梯',u:'樓'}};
+let BOARDS=lsGet('abu-boards')||{};
+const fmtScore=(g,v)=>`${v} ${GAME_INFO[g].u}`;
+async function loadBoards(){
+  if(!API_URL) return;
+  try{ const r=await fetch(API_URL+'?action=board'); const j=await r.json(); if(j.ok&&j.boards){ BOARDS=j.boards; lsSet('abu-boards',BOARDS); if(current==='games') renderRecords(); } }catch(e){}
+}
+function renderRecords(){                                        // 遊戲卡片上顯示全家紀錄保持人
+  document.querySelectorAll('.game-card[data-g]').forEach(b=>{
+    const g=b.dataset.g, top=BOARDS[g]&&BOARDS[g].all&&BOARDS[g].all[0]; let el=b.querySelector('.rec');
+    if(!top){ if(el) el.remove(); return; }
+    if(!el){ el=h('<small class="rec"></small>'); b.querySelector('div').appendChild(el); }
+    el.textContent=`🏆 ${top.by} ${fmtScore(g,top.s)}`;
+  });
+}
+async function postScore(g,v,box){
+  if(!box) return;
+  if(!API_URL){ box.hidden=true; return; }
+  if(!S.me){                                                     // 還不知道你是誰：留名字就上榜
+    box.innerHTML=`<p class="meta">留下名字，上全家排行榜</p><div class="rankname"><input maxlength="30" placeholder="例：媽媽"><button class="btn sm">上榜</button></div>`;
+    const i=box.querySelector('input'); box.querySelector('button').onclick=()=>{ const n=i.value.trim(); if(!n){ i.focus(); return; } S.me=n; save(); postScore(g,v,box); };
+    return;
+  }
+  box.innerHTML='<p class="meta">上傳成績中…</p>';
+  try{
+    const j=await api({action:'score',game:g,score:v,by:S.me});
+    BOARDS[g]=j.board; lsSet('abu-boards',BOARDS);
+    const top= j.beat? `<b class="beat">打破了 ${esc(j.beat.by)} 的全家紀錄（${fmtScore(g,j.beat.s)}）！</b>` : j.rank===1? '<b class="beat">全家第 1 名！</b>' : `全家第 ${j.rank} 名${j.record?'，你的新紀錄！':''}`;
+    box.innerHTML=`<p>${top}${j.wrank?`<br><span class="meta">本週第 ${j.wrank} 名</span>`:''}</p><button class="linkbtn" id="seeBoard">看排行榜</button>`;
+    box.querySelector('#seeBoard').onclick=()=>showBoards(g);
+    if(j.beat||j.rank===1) setTimeout(()=>{ sfx.win(); bark(3); },600);
+  }catch(e){ box.innerHTML='<p class="meta">成績沒上傳成功，下次再試</p>'; }
+}
+function showBoards(g0){
+  let g=g0||'car', wk=false;
+  const m=modal(`<h3>全家排行榜</h3>
+    <div class="bpills">${Object.keys(GAME_INFO).map(k=>`<button data-g="${k}">${GAME_INFO[k].n}</button>`).join('')}</div>
+    <div class="seg" id="bSeg"><button data-w="0">總榜</button><button data-w="1">本週</button></div>
+    <ol class="blist" id="bList"></ol><button class="btn ghost" data-close>關閉</button>`);
+  const draw=()=>{
+    m.el.querySelectorAll('.bpills button').forEach(b=>b.setAttribute('aria-checked',b.dataset.g===g));
+    m.el.querySelectorAll('#bSeg button').forEach(b=>b.setAttribute('aria-checked',(b.dataset.w==='1')===wk));
+    const list=((BOARDS[g]||{})[wk?'week':'all'])||[];
+    m.el.querySelector('#bList').innerHTML= list.length? list.map((x,i)=>`<li class="${x.by===S.me?'me':''}"><span class="medal">${['🥇','🥈','🥉'][i]||(i+1)}</span><span class="bn">${esc(x.by)}</span><b>${fmtScore(g,x.s)}</b></li>`).join('') : `<li class="empty">還沒有人玩${wk?'（本週）':''}，快去搶第一！</li>`;
+    const pb=m.el.querySelector(`.bpills button[data-g="${g}"]`); if(pb) pb.scrollIntoView({inline:'center',block:'nearest'});
+  };
+  m.el.querySelectorAll('.bpills button').forEach(b=>b.onclick=()=>{ g=b.dataset.g; draw(); });
+  m.el.querySelectorAll('#bSeg button').forEach(b=>b.onclick=()=>{ wk=b.dataset.w==='1'; draw(); });
+  draw(); loadBoards().then(draw);
 }
 
 /* ================= 翻牌 ================= */
@@ -513,7 +569,7 @@ function Memory(){
         const [a,b]=open;
         if(a.key===b.key){
           setTimeout(()=>{ a.el.classList.add('done'); b.el.classList.add('done'); sfx.good(); open=[]; lock=false; found++;
-            if(found===6){ const bones=Math.max(3,Math.min(8,14-moves)); setTimeout(()=>winDialog({title:'全部配對成功！',text:`只翻了 ${moves} 次，阿布說你記性真好。`,bones,again:()=>go('memory')}),500); }
+            if(found===6){ const bones=Math.max(3,Math.min(8,14-moves)); setTimeout(()=>winDialog({title:'全部配對成功！',text:`只翻了 ${moves} 次，阿布說你記性真好。`,bones,again:()=>go('memory'),rank:{game:'memory',score:moves}}),500); }
           },350);
         }else{
           setTimeout(()=>{ a.el.classList.remove('open'); b.el.classList.remove('open'); open=[]; lock=false; },800);
@@ -586,7 +642,7 @@ function Catch(){
     running=false; cancelAnimationFrame(raf);
     const bones=Math.max(1,Math.min(10,Math.floor(score/6)));
     const best=Math.max(S.best.catch||0,score); const nb=best>(S.best.catch||0); S.best.catch=best; save();
-    winDialog({title: lives<=0?'吃到不能吃的了！':'時間到！', text:`拿到 ${score} 分${nb?'，新紀錄！':`（最高 ${best} 分）`}`, bones, faceKey: lives<=0?'face_143':'face_66', again:()=>{ intro(); }});
+    winDialog({title: lives<=0?'吃到不能吃的了！':'時間到！', text:`拿到 ${score} 分${nb?'，新紀錄！':`（最高 ${best} 分）`}`, bones, faceKey: lives<=0?'face_143':'face_66', again:()=>{ intro(); },rank:{game:'catch',score}});
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawAvatar();
@@ -640,7 +696,7 @@ function Puzzle(){
       [order[sel],order[i]]=[order[i],order[sel]]; sel=null; moves++; upd(); draw(); sfx.pop();
       if(order.every((v,k)=>v===k)){
         board.classList.add('solved'); setTimeout(layout,450);
-        setTimeout(()=>winDialog({title:'拼好了！',text:`${p.cap?`「${esc(p.cap)}」，`:''}交換了 ${moves} 次。`,bones:5,faceKey:'face_65',again:()=>go('puzzle')}),800);
+        setTimeout(()=>winDialog({title:'拼好了！',text:`${p.cap?`「${esc(p.cap)}」，`:''}交換了 ${moves} 次。`,bones:5,faceKey:'face_65',again:()=>go('puzzle'),rank:{game:'puzzle',score:moves}}),800);
       }
     }
     draw();
@@ -1091,7 +1147,7 @@ function Bowl(){
     else { got=1; title='這樣不夠吃啦'; face_='face_143'; text='阿布舔舔碗，看著你。'; }
     total+=got; round++; upd();
     if(got>=4){ bark(2); sfx.win(); } else if(got>=2){ bark(1); sfx.good(); } else sfx.bad();
-    if(round>=ROUNDS){ setTimeout(()=>winDialog({title:`裝了 ${ROUNDS} 份飯`,text:`最後一份：${title}${text}`,bones:total,faceKey:face_,again:()=>go('bowl')}),700); return; }
+    if(round>=ROUNDS){ setTimeout(()=>winDialog({title:`裝了 ${ROUNDS} 份飯`,text:`最後一份：${title}${text}`,bones:total,faceKey:face_,again:()=>go('bowl'),rank:{game:'bowl',score:total}}),700); return; }
     const m=modal(`<img class="face-img" src="${face(face_)}" alt=""><h3>${title}</h3><p>${text}</p><div class="gain">+${got}<img class="ico" src="img/biscuit/bear.png" alt=""></div><button class="btn" id="next">下一份</button>`,()=>{ if(phase==='done') newRound(); });
     m.el.querySelector('#next').onclick=()=>m.close();
   }
@@ -1313,7 +1369,7 @@ function Car(){
     if(phase==='over') return; phase='over'; cancelAnimationFrame(raf);
     const total=Math.floor(ride)+(won?BONUS:0), bones=Math.max(1,Math.min(12,Math.floor(total/10)));   // 每 10 秒換 1 片餅乾
     const best=Math.max(S.best.carTime||0,total), nb=best>(S.best.carTime||0); S.best.carTime=best; save();
-    winDialog({title: won?'成功拉下車！':'阿布死賴在車上', text:`阿布在車上待了 ${Math.floor(ride)} 秒${won?`，拉下車再 +${BONUS} 秒`:''}，總共 ${total} 秒${nb?'，新紀錄！':`（最高 ${best} 秒）`}<br>每 10 秒換 1 片餅乾。`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car')});
+    winDialog({title: won?'成功拉下車！':'阿布死賴在車上', text:`阿布在車上待了 ${Math.floor(ride)} 秒${won?`，拉下車再 +${BONUS} 秒`:''}，總共 ${total} 秒${nb?'，新紀錄！':`（最高 ${best} 秒）`}<br>每 10 秒換 1 片餅乾。`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car'),rank:{game:'car',score:total}});
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
@@ -1527,7 +1583,7 @@ function Walk(){
     phase='over'; cancelAnimationFrame(raf);
     const m=Math.floor(walked/PX_M), bones=Math.max(1,Math.min(12,Math.floor(m/20)));      // 每 20 公尺換 1 片餅乾
     const best=Math.max(S.best.walkM||0,m), nb=best>(S.best.walkM||0); S.best.walkM=best; save();
-    winDialog({title:'阿布拖著你衝回家了！', text:`今天散步了 ${m} 公尺${nb?'，新紀錄！':`（最高 ${best} 公尺）`}<br>每 20 公尺換 1 片餅乾。`, bones, faceKey:'face_62', again:()=>go('walk')});
+    winDialog({title:'阿布拖著你衝回家了！', text:`今天散步了 ${m} 公尺${nb?'，新紀錄！':`（最高 ${best} 公尺）`}<br>每 20 公尺換 1 片餅乾。`, bones, faceKey:'face_62', again:()=>go('walk'),rank:{game:'walk',score:m}});
   }
   function intro(){
     const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>左右拖，閃開人群和鞭炮。<br>阿布越想回家，就走得越快！</p><button class="btn" id="go">出門散步</button>`);
@@ -1535,6 +1591,161 @@ function Walk(){
   }
   last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
   cleanup=()=>{ phase='over'; cancelAnimationFrame(raf); ro.disconnect(); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
+}
+
+/* ================= 小遊戲：阿布下樓梯 =================
+ * 台階一直往上升，阿布往下跳。按住左邊／右邊移動，別被天花板的刺刺到，也別掉出畫面。
+ * 一般台階回 1 格血；紅色刺刺台扣血；軟墊會彈起來；跑步機會把阿布帶著走；紙箱站一下就垮。比誰下到最深的樓層。 */
+function Stairs(){
+  const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('阿布下樓梯','sstat'));
+  const wrap=h(`<div class="catch-wrap stairs-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
+  s.appendChild(h(`<div class="legend"><span>按住畫面左邊、右邊移動</span></div>`));
+  main.appendChild(s);
+  const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
+  const F={}; ['face_stairs','face_60','face_143','face_66','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
+  const MAXHP=10, GAP=78;
+  let W=0,H=0,dpr=1, plats=[], ax=0, ay=0, vx=0, vy=0, on=null, onT=0, hp=MAXHP, scroll=0, floors=0, speed=70, t=0, last=0, raf=0, phase='intro', dir=0, inv=0, flash=0, nextY=0;
+  let faceK='face_stairs', faceT=0, say='', sayT=0;
+  const R=()=>Math.max(15,Math.min(20,W*.048));
+  function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  size(); const ro=new ResizeObserver(size); ro.observe(wrap);
+  const stat=$('#sstat'); stat.textContent='';
+  const talk=(txt,k,ms=1)=>{ say=txt; sayT=ms; if(k){ faceK=k; faceT=ms; } };
+  /* 按住左半邊往左、右半邊往右 */
+  const pts=new Map();
+  const upd=()=>{ let d=0; pts.forEach(x=>{ d+= x<W/2? -1 : 1; }); dir=Math.max(-1,Math.min(1,d)); };
+  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); const r=wrap.getBoundingClientRect(); pts.set(e.pointerId,e.clientX-r.left); try{ wrap.setPointerCapture(e.pointerId); }catch(x){} upd(); });
+  wrap.addEventListener('pointermove',e=>{ if(!pts.has(e.pointerId)) return; const r=wrap.getBoundingClientRect(); pts.set(e.pointerId,e.clientX-r.left); upd(); });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>wrap.addEventListener(ev,e=>{ pts.delete(e.pointerId); upd(); }));
+  const keys={}; const onKey=e=>{ const v=e.type==='keydown'; if(e.key==='ArrowLeft') keys.l=v; if(e.key==='ArrowRight') keys.r=v; };
+  window.addEventListener('keydown',onKey); window.addEventListener('keyup',onKey);
+  function kindFor(){
+    const f=floors, r=Math.random();
+    if(f<3) return 'normal';
+    if(r<Math.min(.22,.1+f/300)) return 'spike';
+    if(r<.36) return 'spring';
+    if(r<.5) return Math.random()<.5? 'convL':'convR';
+    if(r<Math.min(.64,.56+f/800)) return 'box';
+    return 'normal';
+  }
+  function addPlat(y,kind){ const w=Math.max(78,Math.min(112,W*.27)); plats.push({x:Math.max(8,Math.min(W-w-8,Math.random()*(W-w))),y,w,kind:kind||kindFor(),broken:0,used:false}); }
+  function reset(){
+    plats=[]; hp=MAXHP; floors=0; scroll=0; speed=70; t=0; inv=0; vx=vy=0; on=null;
+    let y=H*.35; for(;y<H+GAP;y+=GAP) addPlat(y,'normal'); nextY=y;
+    const p=plats[1]||plats[0]; p.x=W/2-p.w/2; ax=W/2; ay=p.y-R(); on=p;
+  }
+  /* 台階外觀：一般＝磨石子台階（跟家裡的樓梯一樣）、刺刺台、軟墊、跑步機、紙箱 */
+  function drawPlat(p){
+    const x=p.x, y=p.y, w=p.w, hgt=14;
+    if(p.kind==='box'&&p.broken>0){ ctx.globalAlpha=Math.max(0,1-p.broken*2); }
+    ctx.lineWidth=2; ctx.strokeStyle=INK;
+    if(p.kind==='normal'){
+      ctx.fillStyle='#E8B7A8'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(x,y,w,hgt,4): ctx.rect(x,y,w,hgt); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#B8322A'; for(let k=0;k<10;k++){ ctx.fillRect(x+6+((k*37)%(w-12)),y+3+((k*13)%8),2,2); }
+      ctx.fillStyle='#FFFDF7'; for(let k=0;k<8;k++){ ctx.fillRect(x+4+((k*23+9)%(w-10)),y+2+((k*7)%9),2,2); }
+      ctx.fillStyle='#8A6242'; ctx.fillRect(x,y,w,3);                                   // 台階邊的金屬條
+    }else if(p.kind==='spike'){
+      ctx.fillStyle='#8C8A86'; ctx.fillRect(x,y+6,w,hgt-6); ctx.strokeRect(x,y+6,w,hgt-6);
+      ctx.fillStyle='#D84332'; ctx.beginPath(); for(let k=0;k<w-4;k+=10){ ctx.moveTo(x+2+k,y+6); ctx.lineTo(x+7+k,y-6); ctx.lineTo(x+12+k,y+6); } ctx.fill(); ctx.stroke();
+    }else if(p.kind==='spring'){
+      ctx.fillStyle='#8DBF7A'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(x,y-2,w,hgt+2,8): ctx.rect(x,y-2,w,hgt+2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle='#FFFDF7'; ctx.lineWidth=2; ctx.beginPath(); for(let k=12;k<w-8;k+=14){ ctx.moveTo(x+k,y+2); ctx.lineTo(x+k+6,y+9); } ctx.stroke();
+    }else if(p.kind==='convL'||p.kind==='convR'){
+      ctx.fillStyle='#5C6B7A'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(x,y,w,hgt,7): ctx.rect(x,y,w,hgt); ctx.fill(); ctx.stroke();
+      const off=(t*60*(p.kind==='convL'?-1:1))%14; ctx.strokeStyle='#F2C230'; ctx.lineWidth=2.5; ctx.beginPath();
+      for(let k=-14;k<w+14;k+=14){ const xx=x+k+off; if(xx<x+4||xx>x+w-8) continue; const d=p.kind==='convL'?-1:1; ctx.moveTo(xx,y+3); ctx.lineTo(xx+4*d,y+7); ctx.lineTo(xx,y+11); } ctx.stroke();
+    }else{
+      ctx.fillStyle='#C9A26B'; ctx.fillRect(x,y-4,w,hgt+4); ctx.strokeRect(x,y-4,w,hgt+4);
+      ctx.strokeStyle='#8A6242'; ctx.beginPath(); ctx.moveTo(x+w/2,y-4); ctx.lineTo(x+w/2,y+hgt); ctx.stroke();
+      ctx.fillStyle='#8A6242'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('紙箱',x+w*.25,y+3);
+    }
+    ctx.globalAlpha=1;
+  }
+  function drawAbu(){
+    const r=R(), blink=inv>0&&Math.floor(inv*12)%2===0;
+    if(blink) ctx.globalAlpha=.45;
+    const leg=on? 0 : Math.sin(t*20)*3;
+    ctx.fillStyle='#D9772B'; ctx.strokeStyle=INK; ctx.lineWidth=2;
+    [[-.5,leg],[.5,-leg]].forEach(([sx,o])=>{ ctx.beginPath(); ctx.ellipse(ax+sx*r,ay+r*.9+o,r*.22,r*.3,0,0,7); ctx.fill(); ctx.stroke(); ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(ax+sx*r,ay+r*1.12+o,r*.2,r*.12,0,0,7); ctx.fill(); ctx.stroke(); ctx.fillStyle='#D9772B'; });
+    ctx.save(); ctx.beginPath(); ctx.arc(ax,ay,r+3,0,7); ctx.fillStyle= hp<=3? '#EE8597':'#F2C230'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(ax,ay,r,0,7); ctx.clip();
+    const im=F[faceK]; if(im&&im.complete) ctx.drawImage(im,ax-r,ay-r,r*2,r*2); ctx.restore();
+    ctx.globalAlpha=1;
+  }
+  function hurt(n,line){ if(inv>0) return; hp=Math.max(0,hp-n); inv=.9; flash=.3; sfx.bad(); talk(line,'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){} }
+  function frame(ts){
+    const dt=Math.min(.033,(ts-last)/1000||0); last=ts;
+    if(phase==='play'){
+      t+=dt; inv=Math.max(0,inv-dt); flash=Math.max(0,flash-dt);
+      speed=Math.min(190,70+floors*1.4);
+      const dy=speed*dt; scroll+=dy; plats.forEach(p=>p.y-=dy); nextY-=dy;
+      while(nextY<H+GAP){ addPlat(nextY); nextY+=GAP; }
+      plats=plats.filter(p=>p.y>-30&&p.broken<.5);
+      const nf=Math.floor(scroll/GAP); if(nf>floors){ floors=nf; if(floors%10===0){ tone(880,.12,'triangle',.1,300); talk(`地下 ${floors} 樓了！`,'face_66',1.1); } }
+      const d=dir||(keys.l?-1:0)+(keys.r?1:0), r=R();
+      vx=d*190;
+      if(on){
+        if(!plats.includes(on)||on.broken>0.05){ on=null; }
+        else{
+          ay=on.y-r*1.15; onT+=dt;
+          if(on.kind==='convL') vx-=85; if(on.kind==='convR') vx+=85;
+          if(on.kind==='box'&&onT>.35&&!on.broken){ on.broken=.01; talk('箱子垮了！','face_143',.8); tone(160,.2,'square',.06,-60); }
+          if(ax<on.x-r*.3||ax>on.x+on.w+r*.3){ on=null; vy=0; }
+        }
+      }
+      plats.forEach(p=>{ if(p.broken>0) p.broken+=dt; });
+      ax=Math.max(r,Math.min(W-r,ax+vx*dt));
+      if(!on){
+        vy=Math.min(520,vy+1000*dt); const prev=ay; ay+=vy*dt;
+        for(const p of plats){
+          const top=p.y-r*1.15;
+          if(vy>=0&&prev<=top+2&&ay>=top&&ax>p.x-r*.4&&ax<p.x+p.w+r*.4&&!(p.kind==='box'&&p.broken)){
+            ay=top; vy=0; on=p; onT=0;
+            if(p.kind==='spike'){ hurt(4,'好痛！'); }
+            else if(p.kind==='spring'){ on=null; vy=-480; talk('咻～','face_66',.7); tone(420,.15,'sine',.1,500); }
+            else { if(!p.used&&hp<MAXHP){ hp++; } if(p.kind==='convL'||p.kind==='convR') talk('欸欸欸','face_60',.7); else if(Math.random()<.15) talk(pick(['好穩','汪！','下一階']),'face_stairs',.7); }
+            p.used=true; break;
+          }
+        }
+      }
+      if(ay-r<34){ hurt(5,'頭頂好刺！'); on=null; vy=160; ay=34+r; }         // 天花板的刺
+      if(ay>H+r*2){ hp=0; talk('掉下去了…','face_143',1); }
+      if(faceT>0){ faceT-=dt; if(faceT<=0) faceK= hp<=3? 'face_62':'face_stairs'; }
+      if(hp<=0){ phase='over'; setTimeout(finish,700); }
+    }
+    /* 畫面 */
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#F4E9D8'); g.addColorStop(1,'#E9D9C0'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(138,98,66,.12)'; ctx.lineWidth=2; for(let k=0;k<12;k++){ const yy=((k*70-scroll*.5)%840+840)%840-40; ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(W,yy+30); ctx.stroke(); }   // 牆上的扶手影子
+    plats.forEach(drawPlat);
+    if(phase!=='intro') drawAbu();
+    ctx.fillStyle='#5C6B7A'; ctx.fillRect(0,0,W,16); ctx.fillStyle='#8C8A86'; ctx.strokeStyle=INK; ctx.lineWidth=1.5;   // 天花板的刺
+    ctx.beginPath(); for(let x=0;x<W;x+=14){ ctx.moveTo(x,16); ctx.lineTo(x+7,32); ctx.lineTo(x+14,16); } ctx.fill(); ctx.stroke();
+    if(flash>0){ ctx.fillStyle=`rgba(216,67,50,${flash})`; ctx.fillRect(0,0,W,H); }
+    if(sayT>0&&phase!=='intro'){ sayT-=1/60; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+18, bx=Math.max(6,Math.min(W-tw-6,ax-tw/2)), by=Math.max(40,ay-R()-40);
+      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,26,10): ctx.rect(bx,by,tw,26); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,bx+9,by+13); }
+    if(phase!=='intro'){                                              // 大字樓層＋血條
+      const best=S.best.stairs||0;
+      ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='bold 36px "Huninn",sans-serif'; ctx.lineWidth=6; ctx.strokeStyle=INK; ctx.lineJoin='round';
+      const txt=`地下 ${floors} 樓`; ctx.strokeText(txt,W/2,62); ctx.fillStyle= best&&floors>best? '#F2C230':'#FFFDF7'; ctx.fillText(txt,W/2,62);
+      if(best){ ctx.font='12px "Huninn",sans-serif'; ctx.fillStyle=INK; ctx.fillText(floors>best?'新紀錄！':`最高 地下 ${best} 樓`,W/2,88); }
+      ctx.restore();
+      const bw=Math.min(180,W*.46), bx=W-bw-12, by=H-20;
+      for(let k=0;k<MAXHP;k++){ ctx.fillStyle= k<hp? (hp<=3?'#D84332':'#8DBF7A') : 'rgba(43,39,35,.15)'; ctx.fillRect(bx+k*bw/MAXHP+1,by,bw/MAXHP-2,9); }
+      ctx.fillStyle=INK; ctx.font='bold 11px "Huninn",sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText('體力',bx-6,by+5);
+    }
+    if(phase!=='done') raf=requestAnimationFrame(frame);
+  }
+  function finish(){
+    phase='done'; cancelAnimationFrame(raf);
+    const bones=Math.max(1,Math.min(12,Math.floor(floors/5)));      // 每 5 樓換 1 片餅乾
+    const best=Math.max(S.best.stairs||0,floors), nb=best>(S.best.stairs||0); S.best.stairs=best; save();
+    winDialog({title:`下到地下 ${floors} 樓`, text:`${nb?'新紀錄！':`最高 地下 ${best} 樓`}<br>每 5 樓換 1 片餅乾。`, bones, faceKey:'face_stairs', again:()=>go('stairs'), rank:{game:'stairs',score:floors}});
+  }
+  function intro(){
+    const m=modal(`<img class="face-img" src="${face('face_stairs')}" alt=""><h3>阿布下樓梯</h3><p>按住左邊、右邊移動。<br>別被天花板刺到，也別掉下去！</p><button class="btn" id="go">開始</button>`);
+    m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); reset(); phase='play'; last=performance.now(); talk('我下樓囉！','face_66',1); };
+  }
+  reset(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
+  cleanup=()=>{ phase='done'; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown',onKey); window.removeEventListener('keyup',onKey); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
 /* ================= 小遊戲：阿布能不能吃？ ================= */
@@ -1595,7 +1806,7 @@ function Quiz(){
     fb.querySelector('#qNext').onclick=()=>{
       i++; if(i<N) return show();
       const bones= right===N? 6 : Math.max(1,Math.ceil(right/2));
-      winDialog({title: right===N?'全部答對！':`答對 ${right} / ${N} 題`, text: right===N?'你是阿布最放心的家人。':'多玩幾次，阿布的安全就靠你了。', bones, faceKey: right>=6?'face_66':'face_60', again:()=>go('quiz')});
+      winDialog({title: right===N?'全部答對！':`答對 ${right} / ${N} 題`, text: right===N?'你是阿布最放心的家人。':'多玩幾次，阿布的安全就靠你了。', bones, faceKey: right>=6?'face_66':'face_60', again:()=>go('quiz'),rank:{game:'quiz',score:right}});
     };
   });
   show();

@@ -563,6 +563,26 @@
   .reel-end h3{font-family:var(--font-display);font-weight:400;font-size:28px;margin:0;text-wrap:balance}
   .reel-end .gain{color:var(--collar);font-size:20px}
   .btn.ghost-w{background:transparent;color:#fff;box-shadow:none;font-size:16px;padding:8px 14px;border:2px solid rgba(255,255,255,.6)}
+  /* ---------- 全家排行榜 ---------- */
+  .game-card .rec{display:block;font-size:12px;color:var(--shiba-deep);margin-top:3px;font-weight:700}
+  .rankline{width:100%}
+  .rankline:empty{display:none}
+  .rankline p{margin:0;color:var(--ink)}
+  .rankline .beat{color:var(--shiba-deep);font-size:17px}
+  .rankname{display:flex;gap:8px;margin-top:6px}
+  .rankname input{flex:1;min-width:0;font:inherit;font-size:16px;border:2px solid var(--lawn-deep);border-radius:12px;padding:8px 10px}
+  .bpills{display:flex;gap:6px;overflow-x:auto;width:100%;padding-bottom:4px;scrollbar-width:none}
+  .bpills::-webkit-scrollbar{display:none}
+  .bpills button{flex:none;border-radius:99px;padding:7px 12px;background:var(--urajiro);font-size:14px;white-space:nowrap}
+  .bpills button[aria-checked="true"]{background:var(--shiba);color:#fff;font-weight:700}
+  #bSeg{width:100%;grid-template-columns:1fr 1fr}
+  .blist{list-style:none;margin:0;padding:0;width:100%;display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow-y:auto}
+  .blist li{display:flex;align-items:center;gap:10px;background:var(--urajiro);border-radius:12px;padding:9px 12px;text-align:left}
+  .blist li.me{background:#FFF1C9;box-shadow:inset 0 0 0 2px var(--collar)}
+  .blist .medal{width:28px;text-align:center;font-weight:800;color:var(--ink-soft)}
+  .blist .bn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .blist b{font-variant-numeric:tabular-nums}
+  .blist .empty{justify-content:center;color:var(--ink-soft)}
 </style>
 </head>
 <body>
