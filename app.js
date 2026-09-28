@@ -751,7 +751,7 @@ const DIARY_CATS=[
   {cat:'上廁所', icon:'i-potty', cls:'d-potty'},
 ];
 function Food(){
-  const s=h(`<section class="screen"><h2>日常</h2></section>`);
+  const s=h(`<section class="screen"><h2>日常</h2><figure class="famframe"><img src="img/family.jpg" alt="阿布和家人的手繪全家福"><figcaption>阿布之家</figcaption></figure></section>`);
   DIARY_CATS.forEach(c=>{
     const photos=pool().filter(p=>p.cat===c.cat).sort((a,b)=>ptime(b)-ptime(a));
     s.appendChild(h(`<section class="dsec ${c.cls}"><h3><svg><use href="#${c.icon}"/></svg>${c.cat}</h3>

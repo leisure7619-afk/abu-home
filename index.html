@@ -11,7 +11,16 @@
 <meta name="apple-mobile-web-app-title" content="阿布之家">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="img/icon-192.png">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="阿布之家">
+<meta property="og:title" content="阿布之家">
+<meta property="og:description" content="摸摸阿布、玩小遊戲、一起看阿布的回憶照片">
+<meta property="og:url" content="https://leisure7619-afk.github.io/abu-home/">
+<meta property="og:image" content="https://leisure7619-afk.github.io/abu-home/img/og.jpg?v=2">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -454,6 +463,12 @@
   .confirm p{margin:0;font-size:14px;color:#8E2E1E}
   .del-thumb{width:120px;height:120px;border-radius:14px;object-fit:cover}
   .dthumb img,.photo img{-webkit-touch-callout:none}
+  /* ---------- 日常頁的全家福相框 ---------- */
+  .famframe{align-self:center;width:min(86%,360px);background:#fff;padding:10px 10px 30px;border-radius:4px;box-shadow:0 8px 18px rgba(43,39,35,.16);transform:rotate(-2deg);position:relative;margin:14px 0 6px}
+  .famframe img{width:100%;display:block}
+  .famframe figcaption{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-family:var(--font-display);font-size:15px}
+  .famframe::before{content:"";position:absolute;top:-9px;left:50%;width:78px;height:22px;margin-left:-39px;background:rgba(242,194,48,.78);transform:rotate(3deg)}
+
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
   }
