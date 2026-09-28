@@ -244,17 +244,22 @@ function walkPhotos(){
   if(all.length>=3) return all;                                   // 散步照不管解鎖與否都能在這裡看到
   return mine.concat(all,SAMPLE.filter(p=>['s41','s49','s53','s69','s126'].includes(p.id)));
 }
-/* 阿布的飢餓、口渴：全家共用（存在雲端），12 小時從飽到餓、8 小時從不渴到很渴 */
-const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3;
+/* 阿布的飢餓、口渴、想尿尿：全家共用（存在雲端），12 小時從飽到餓、8 小時從不渴到很渴、10 小時憋到滿（吃喝會更快） */
+const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3, NEED_PEE=10*3600e3;
 let NEEDS=lsGet('abu-needs')||{f:1,ft:Date.now(),fb:'',w:1,wt:Date.now(),wb:''};
 const fullNow=()=>Math.max(0,Math.min(1,NEEDS.f-(Date.now()-NEEDS.ft)/NEED_EAT));
 const waterNow=()=>Math.max(0,Math.min(1,NEEDS.w-(Date.now()-NEEDS.wt)/NEED_DRINK));
-const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, needy=()=>hungry()||thirsty();
+const peeNow=()=>Math.max(0,Math.min(1,(NEEDS.p||0)+(Date.now()-(NEEDS.pt||Date.now()))/NEED_PEE));
+const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, mustPee=()=>peeNow()>=.75, needy=()=>hungry()||thirsty()||mustPee();
 function setNeeds(n){ if(n&&typeof n.f==='number'){ NEEDS=n; lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
 async function careAbu(kind){                                 // 先在手機上更新，再告訴雲端（全家同步）
   const now=Date.now();
-  if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||''}); }
-  else { NEEDS=Object.assign({},NEEDS,{w:1,wt:now,wb:S.me||''}); }
+  if(kind==='walk'){ NEEDS=Object.assign({},NEEDS,{p:0,pt:now,pb:S.me||''}); }
+  else {
+    const p=Math.min(1,peeNow()+(kind==='eat'?.05:.15));
+    if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||'',p,pt:now}); }
+    else { NEEDS=Object.assign({},NEEDS,{w:1,wt:now,wb:S.me||'',p,pt:now}); }
+  }
   lsSet('abu-needs',NEEDS); renderNeeds();
   if(API_URL){ try{ const j=await api({action:kind,by:S.me||''}); setNeeds(j.needs); }catch(e){} }
 }
@@ -264,8 +269,10 @@ function renderNeeds(){
   const f=fullNow(), w=waterNow();
   const set=(id,v)=>{ const el=box.querySelector(id); el.querySelector('i').style.width=(v*100)+'%'; el.classList.toggle('low',v<.25); el.classList.toggle('mid',v>=.25&&v<.5); };
   set('#needF',f); set('#needW',w);
-  const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`].filter(Boolean).join('・');
-  box.querySelector('#needWho').textContent= who || (f<.25||w<.25? '阿布在等人照顧…' : '');
+  const p=peeNow(), pe=box.querySelector('#needP');               // 尿尿條是越滿越急
+  pe.querySelector('i').style.width=(p*100)+'%'; pe.classList.toggle('low',p>=.75); pe.classList.toggle('mid',p>=.5&&p<.75);
+  const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${ago(NEEDS.pt)}帶去尿尿`].filter(Boolean).join('・');
+  box.querySelector('#needWho').textContent= who || (f<.25||w<.25||p>=.75? '阿布在等人照顧…' : '');
 }
 
 /* ================= 主畫面 ================= */
@@ -309,7 +316,7 @@ function greeting(){
   else if(hr<17) line= name? `${name}，下午好～` : '下午好～陪我玩一下';
   else line= name? `${name}你回來了！` : '晚上好～今天過得好嗎？';
   try{ const B=bathInfo(); if(B.last&&B.days===0&&mood==='normal') line='我今天洗香香了，聞聞看！'; }catch(e){}
-  if(mood==='normal'&&(fullNow()<.25||waterNow()<.25)) line= fullNow()<.25? '肚子好餓…可以給我餅乾嗎？' : '好渴喔…可以給我水嗎？';
+  if(mood==='normal'&&(fullNow()<.25||waterNow()<.25||peeNow()>=.75)) line= peeNow()>=.75? '我想出門尿尿…（在門口轉圈）' : fullNow()<.25? '肚子好餓…可以給我餅乾嗎？' : '好渴喔…可以給我水嗎？';
   if(isBirthday()){ line='今天是我的生日！汪！'; mood='bday'; }
   S.lastSeen=now; S.lastDay=today; save();
   return {line,gift,mood,missed,first};
@@ -319,7 +326,7 @@ function Home(){
   const s=h(`<section class="screen">
     <div id="lostBox"></div>
     <div class="love" id="love"><span class="lv">Lv.1</span><span class="title"></span><span class="num"></span><div class="bar"><i></i></div></div>
-    <div class="needs" id="needs"><div class="need" id="needF"><span>🍖 飽足</span><div class="nbar"><i></i></div></div><div class="need" id="needW"><span>💧 水分</span><div class="nbar"><i></i></div></div><small id="needWho"></small></div>
+    <div class="needs" id="needs"><div class="need" id="needF"><span>🍖 飽足</span><div class="nbar"><i></i></div></div><div class="need" id="needW"><span>💧 水分</span><div class="nbar"><i></i></div></div><div class="need" id="needP"><span>🌳 尿尿</span><div class="nbar"><i></i></div></div><small id="needWho"></small></div>
     <div class="stage">
       <div class="bubble" id="bubble">汪！</div>
       <div class="abu" id="abu" role="button" tabindex="0" aria-label="摸摸阿布"><img id="abuImg" alt="阿布"></div>
@@ -330,7 +337,7 @@ function Home(){
       <button class="act" id="aPet"><svg><use href="#i-hand"/></svg>摸摸<small>按住是抓抓</small></button>
       <button class="act" id="aFeed"><img class="ico" src="img/biscuit/bear.png" alt="">餵餅乾<small>用 1 片 · 止餓</small></button>
       <button class="act" id="aDrink"><span class="ico-emoji">💧</span>喝水<small>免費</small></button>
-      <button class="act" id="aWalk"><svg><use href="#i-leash"/></svg>去散步<small>+2 好感</small></button>
+      <button class="act" id="aWalk"><svg><use href="#i-leash"/></svg>去散步<small>尿尿 · +2 好感</small></button>
     </div>
   </section>`);
   main.appendChild(s); renderLove(); renderLost(); renderNeeds();
@@ -482,11 +489,14 @@ function Home(){
     const d=h(`<div class="flying-bone drop">💧</div>`); fx.appendChild(d); setTimeout(()=>d.remove(),650);
     setTimeout(()=>{ careAbu('drink'); mood('face_60',1600); say(pick(['咕嚕咕嚕～','好好喝！','水好冰涼'])); for(let k=0;k<4;k++) tone(300+k*40,.08,'sine',.08,120,k*.12); },450);
   };
+  /* 去散步：阿布一定在外面上廁所；剛上過就不肯出門 */
   $('#aWalk').onclick=()=>{
-    ac(); resetIdle(); wake(); bark(2);
-    const p=pick(walkPhotos());
-    addLove(2);
-    modal(`<h3>出門散步囉！</h3>${pimg(p,1200,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}${p.cap?`<p>${esc(p.cap)}</p>`:''}<button class="btn" data-close>回家</button>`,()=>{
+    ac(); resetIdle(); wake();
+    if(peeNow()<.3){ mood(pick(FACES.look),1800); say(pick(['剛剛才去過，不想出門','（趴著不動）','外面好熱，等一下再去'])); tone(240,.25,'sine',.08,-40); return; }
+    bark(2);
+    const p=pick(walkPhotos()), urgent=mustPee();
+    careAbu('walk'); addLove(2);
+    modal(`<h3>${urgent?'終於尿出來了～':'出門散步囉！'}</h3>${pimg(p,1200,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}${p.cap?`<p>${esc(p.cap)}</p>`:''}<button class="btn" data-close>回家</button>`,()=>{
       tier=Math.max(tier,2); combo=Math.max(combo,LADDER[2].at); renderJoy();
       setFace(pick(LADDER[tier].faces)); say('散步好開心！',true); hearts(5); scheduleDecay();
     });
@@ -507,7 +517,7 @@ function Home(){
     setTimeout(()=>{ addBones(g.gift); toast(g.missed? `阿布把藏起來的 ${g.gift} 片餅乾都給你了` : `阿布叼來今天的 ${g.gift} 片餅乾`,2400); },g.mood==='miss'?2200:700);
   }
   resetIdle();
-  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
+  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
   const needT=setInterval(renderNeeds,30000);
   cleanup=()=>{ clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
@@ -1631,6 +1641,7 @@ function Walk(){
     phase='over'; cancelAnimationFrame(raf);
     const m=Math.floor(walked/PX_M), bones=Math.max(1,Math.min(12,Math.floor(m/20)));      // 每 20 公尺換 1 片餅乾
     const best=Math.max(S.best.walkM||0,m), nb=best>(S.best.walkM||0); S.best.walkM=best; save();
+    if(m>=20) careAbu('walk');                                  // 真的出門走過，就算尿過了
     winDialog({title:'阿布拖著你衝回家了！', text:`今天散步了 ${m} 公尺${nb?'，新紀錄！':`（最高 ${best} 公尺）`}<br>每 20 公尺換 1 片餅乾。`, bones, faceKey:'face_62', again:()=>go('walk'),rank:{game:'walk',score:m}});
   }
   function intro(){
