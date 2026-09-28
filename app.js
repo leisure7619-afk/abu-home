@@ -1324,35 +1324,38 @@ function Car(){
   cleanup=()=>{ phase='over'; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown',onKey); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
-/* 卡通柴犬身體（從後面看）：赤柴毛色、白襪子、屁屁的白毛（裏白）、黃黑條紋項圈，還有像肉桂捲一樣會搖的捲捲尾巴 */
+/* 卡通柴犬身體（從後面看，參考柔和插畫風）：淺赤柴色、奶油色的裏白和腳、細咖啡色線條、黃黑條紋項圈，
+ * 尾巴從屁股往上捲成一圈螺旋，以尾巴根為軸左右搖。 */
 function shibaBody(c,ax,y,r,step,wagHz,wagAmp){
-  const INK='#2B2723', RED='#D9772B', RED2='#B85E1C', CREAM='#FBEBD6';
-  const tt=performance.now()/1000, leg=Math.sin(step)*r*.16;
-  c.save(); c.lineJoin='round'; c.lineCap='round';
-  c.fillStyle='rgba(43,39,35,.16)'; c.beginPath(); c.ellipse(ax,y+r*2.62,r*1.05,r*.28,0,0,7); c.fill();
-  c.strokeStyle=INK; c.lineWidth=2.4;
-  [[-1,leg],[1,-leg]].forEach(([sd,o])=>{                                   // 後腳：大腿＋白襪子，走路一前一後
-    c.fillStyle=RED; c.beginPath(); c.ellipse(ax+sd*r*.58,y+r*2.25+o,r*.3,r*.38,sd*.12,0,7); c.fill(); c.stroke();
-    c.fillStyle=CREAM; c.beginPath(); c.ellipse(ax+sd*r*.62,y+r*2.56+o,r*.22,r*.14,0,0,7); c.fill(); c.stroke();
+  const LINE='#5A4A42', ORG='#F0A94B', ORG2='#E3923A', CREAM='#FFF4E0';
+  const tt=performance.now()/1000, leg=Math.sin(step)*r*.12, lw=Math.max(2,r*.06);
+  c.save(); c.lineJoin='round'; c.lineCap='round'; c.strokeStyle=LINE; c.lineWidth=lw;
+  c.fillStyle='rgba(43,39,35,.14)'; c.beginPath(); c.ellipse(ax,y+r*2.62,r*1.0,r*.24,0,0,7); c.fill();
+  c.fillStyle=ORG; c.beginPath();                                            // 身體：肩膀窄、屁股圓
+  c.moveTo(ax-r*.42,y+r*.82); c.bezierCurveTo(ax-r*.95,y+r*1.25,ax-r*1.02,y+r*2.3,ax-r*.72,y+r*2.5);
+  c.lineTo(ax+r*.72,y+r*2.5); c.bezierCurveTo(ax+r*1.02,y+r*2.3,ax+r*.95,y+r*1.25,ax+r*.42,y+r*.82); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle=CREAM; c.beginPath();                                          // 屁屁和後腿內側的奶油色（倒 U 形）
+  c.moveTo(ax-r*.62,y+r*2.5); c.bezierCurveTo(ax-r*.6,y+r*1.95,ax-r*.25,y+r*1.72,ax,y+r*1.72); c.bezierCurveTo(ax+r*.25,y+r*1.72,ax+r*.6,y+r*1.95,ax+r*.62,y+r*2.5); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(ax,y+r*2.05); c.lineTo(ax,y+r*2.5); c.stroke();                                              // 兩條後腿中間的線
+  [[-1,leg],[1,-leg]].forEach(([sd,o])=>{                                   // 後腳掌，一前一後踏
+    c.fillStyle=CREAM; c.beginPath(); c.ellipse(ax+sd*r*.42,y+r*2.55+o,r*.28,r*.13,0,0,7); c.fill(); c.stroke();
   });
-  c.fillStyle=RED; c.beginPath();                                            // 身體：肩膀窄、屁股圓
-  c.moveTo(ax-r*.45,y+r*.85); c.bezierCurveTo(ax-r*1.05,y+r*1.3,ax-r*1.05,y+r*2.45,ax,y+r*2.5); c.bezierCurveTo(ax+r*1.05,y+r*2.45,ax+r*1.05,y+r*1.3,ax+r*.45,y+r*.85); c.closePath(); c.fill(); c.stroke();
-  c.fillStyle=CREAM; c.beginPath();                                          // 屁屁的白毛
-  c.moveTo(ax,y+r*2.02); c.bezierCurveTo(ax-r*.2,y+r*1.9,ax-r*.6,y+r*2.02,ax-r*.5,y+r*2.3); c.quadraticCurveTo(ax-r*.35,y+r*2.48,ax,y+r*2.48); c.quadraticCurveTo(ax+r*.35,y+r*2.48,ax+r*.5,y+r*2.3); c.bezierCurveTo(ax+r*.6,y+r*2.02,ax+r*.2,y+r*1.9,ax,y+r*2.02); c.fill();
-  const wag=Math.sin(tt*wagHz)*wagAmp;                                       // 捲捲尾巴：圓圓一圈捲在背上，以尾巴根為軸左右搖
-  c.save(); c.translate(ax,y+r*1.98); c.rotate(wag);
-  const tr=r*.42, cy=-r*.5;
-  c.fillStyle='rgba(43,39,35,.18)'; c.beginPath(); c.ellipse(r*.06,cy+r*.1,tr*1.02,tr*.95,0,0,7); c.fill();          // 尾巴影子
-  c.fillStyle=RED; c.strokeStyle=INK; c.lineWidth=2.4; c.beginPath(); c.arc(0,cy,tr,0,7); c.fill(); c.stroke();         // 外圈
-  c.strokeStyle=CREAM; c.lineWidth=tr*.22; c.beginPath(); c.arc(0,cy,tr*.72,Math.PI*.15,Math.PI*1.05); c.stroke();     // 捲起來露出的白毛
-  c.fillStyle=RED2; c.strokeStyle=INK; c.lineWidth=2; c.beginPath(); c.arc(tr*.2,cy-tr*.18,tr*.3,0,7); c.fill(); c.stroke();   // 中間的洞
-  c.strokeStyle=INK; c.lineWidth=2; c.beginPath(); c.arc(tr*.12,cy-tr*.08,tr*.6,Math.PI*1.05,Math.PI*1.75); c.stroke();   // 捲的紋路
-  c.fillStyle=CREAM; c.beginPath(); c.arc(tr*.26,cy-tr*.24,tr*.12,0,7); c.fill();                                       // 尾巴尖白毛
+  const wag=Math.sin(tt*wagHz)*wagAmp;                                       // 捲捲尾巴：像肉桂捲一樣捲成一圈，中間露出奶油色
+  c.save(); c.translate(ax,y+r*2.02); c.rotate(wag);
+  const R0=r*.4, cy=-r*.42;
+  c.fillStyle='rgba(90,74,66,.18)'; c.beginPath(); c.ellipse(r*.05,cy+r*.12,R0,R0*.9,0,0,7); c.fill();                   // 尾巴影子
+  c.fillStyle=ORG; c.strokeStyle=LINE; c.lineWidth=lw;
+  c.beginPath(); c.moveTo(-r*.14,0); c.quadraticCurveTo(-r*.16,cy+R0*.6,-R0*.6,cy+R0*.55); c.lineTo(R0*.2,cy+R0*.9); c.quadraticCurveTo(r*.14,-r*.05,r*.14,0); c.fill(); c.stroke();   // 尾巴根
+  c.beginPath(); c.arc(0,cy,R0,0,7); c.fill(); c.stroke();                                                                // 外圈
+  c.fillStyle=CREAM; c.beginPath(); c.arc(R0*.12,cy-R0*.08,R0*.48,0,7); c.fill(); c.stroke();                             // 中間的奶油色
+  c.fillStyle=ORG; c.beginPath(); c.arc(R0*.22,cy-R0*.14,R0*.24,0,7); c.fill(); c.stroke();                               // 最裡面再捲一圈
+  c.strokeStyle=LINE; c.beginPath(); c.arc(0,cy,R0*.78,Math.PI*.9,Math.PI*1.55); c.stroke();                            // 毛流線
   c.restore();
-  const ny=y+r*1.12;                                                         // 黃黑條紋項圈（阿布的招牌）
-  c.save(); c.beginPath(); c.roundRect? c.roundRect(ax-r*.52,ny-r*.11,r*1.04,r*.22,r*.11): c.rect(ax-r*.52,ny-r*.11,r*1.04,r*.22); c.clip();
-  for(let k=-6;k<7;k++){ c.fillStyle=k%2? '#F2C230':INK; c.beginPath(); c.moveTo(ax+k*r*.14,ny-r*.13); c.lineTo(ax+k*r*.14+r*.14,ny-r*.13); c.lineTo(ax+k*r*.14+r*.06,ny+r*.13); c.lineTo(ax+k*r*.14-r*.08,ny+r*.13); c.fill(); }
-  c.restore(); c.strokeStyle=INK; c.lineWidth=2; c.beginPath(); c.roundRect? c.roundRect(ax-r*.52,ny-r*.11,r*1.04,r*.22,r*.11): c.rect(ax-r*.52,ny-r*.11,r*1.04,r*.22); c.stroke();
+  c.strokeStyle=ORG2; c.lineWidth=lw; c.beginPath(); c.moveTo(ax-r*.7,y+r*1.6); c.quadraticCurveTo(ax-r*.78,y+r*1.9,ax-r*.66,y+r*2.1); c.moveTo(ax+r*.7,y+r*1.6); c.quadraticCurveTo(ax+r*.78,y+r*1.9,ax+r*.66,y+r*2.1); c.stroke();   // 大腿的毛流線
+  const ny=y+r*1.1;                                                          // 黃黑條紋項圈（阿布的招牌）
+  c.save(); c.beginPath(); c.roundRect? c.roundRect(ax-r*.5,ny-r*.1,r*1.0,r*.2,r*.1): c.rect(ax-r*.5,ny-r*.1,r*1.0,r*.2); c.clip();
+  for(let k=-6;k<7;k++){ c.fillStyle=k%2? '#F2C230':'#2B2723'; c.beginPath(); c.moveTo(ax+k*r*.14,ny-r*.12); c.lineTo(ax+k*r*.14+r*.14,ny-r*.12); c.lineTo(ax+k*r*.14+r*.06,ny+r*.12); c.lineTo(ax+k*r*.14-r*.08,ny+r*.12); c.fill(); }
+  c.restore(); c.strokeStyle=LINE; c.lineWidth=lw; c.beginPath(); c.roundRect? c.roundRect(ax-r*.5,ny-r*.1,r*1.0,r*.2,r*.1): c.rect(ax-r*.5,ny-r*.1,r*1.0,r*.2); c.stroke();
   c.restore();
 }
 /* ================= 小遊戲：陪阿布散步（阿布怕人多、怕鞭炮） =================
