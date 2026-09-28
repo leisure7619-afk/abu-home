@@ -10,7 +10,9 @@ const SAMPLE = [
   ['69','公園散步'],['86','桌上的雞肉好香（只是看看）'],['121','小木屋前一起乘涼'],['122','小木屋前全員到齊'],
   ['124','有我的份嗎？'],['126','草地上散步'],['142','星星毯子上的阿布'],
 ].map(([n,cap],i)=>({id:'s'+n, cap, by:'', t:i+1, url:'img/sample/'+n+'.jpg', sample:true, cat:(n==='86'||n==='124')?'美食':''}));
-const UNLOCK_COST = 2;
+const PACK_COST = 1, PACK_SIZE = 10;   // 1 片餅乾解鎖 10 張照片
+const REEL_COST = 2;                   // 2 片餅乾解鎖一支短片（解鎖後可以一直重看）
+const LEVEL_GIFT = 3;                  // 好感升一級，阿布送 3 片餅乾
 /* 阿布最愛的餅乾：牛肉、羊肉、雞肉三種口味 */
 const SHAPES = ['strawberry','bear','bone','lion','apple','rabbit','grape','monkey'].map(n=>'img/biscuit/'+n+'.png');
 const FLAVORS = [{n:'牛肉',c:'#9C5A2E'},{n:'羊肉',c:'#BF8543'},{n:'雞肉',c:'#DDB067'}];
@@ -100,6 +102,7 @@ async function loadPhotos(fresh){
     const j=await r.json(); if(!j.ok) throw new Error(j.error||'讀取失敗');
     PH=uniq(j.photos||[]).map(normCat); CONFIG=Object.assign({lostLink:'',lostNote:'',birthday:'',meals:'',bathDays:''},j.config||{}); PH_STATE='ok';
     if(j.feeds){ FEEDS=j.feeds; lsSet('abu-feeds',FEEDS); }
+    if(Array.isArray(j.reels)){ REELS=j.reels; REELS_ON_SERVER=true; lsSet('abu-reels',REELS); } else REELS_ON_SERVER=false;
     lsSet('abu-photos',{photos:PH,config:CONFIG});
     loadEars();
   }catch(e){
@@ -108,6 +111,7 @@ async function loadPhotos(fresh){
   }
   ensureFree(); renderTop();
   if(current==='album'||current==='food') go(current,true);
+  ensureTodayReel();
   if(current==='home') renderLost();
 }
 async function api(body){
@@ -167,7 +171,11 @@ function modal(inner,onClose){
   return {el:o,close};
 }
 function addBones(n){ S.bones+=n; save(); renderTop(); }
-function addLove(n){ S.love+=n; save(); if(current==='home') renderLove(); }
+function addLove(n){
+  const before=Math.floor(S.love/40); S.love+=n; const up=Math.floor(S.love/40)-before;
+  save(); if(current==='home') renderLove();
+  if(up>0){ const g=LEVEL_GIFT*up, L=levelInfo(); addBones(g); setTimeout(()=>{ sfx.win(); toast(`升到 Lv.${L.lv}「${L.title}」！阿布送你 ${g} 片餅乾`,2800); },400); }
+}
 function fmtDate(t){ if(!t) return ''; const d=new Date(t); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
 
 
@@ -454,7 +462,7 @@ function Home(){
 /* ================= 小遊戲清單 ================= */
 function Games(){
   const s=h(`<section class="screen">
-    <div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布，也可以解鎖回憶照片。</p></div>
+    <div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布、解鎖回憶照片和阿布短片。</p></div>
     <button class="game-card" data-g="memory"><img class="thumb" src="img/face_60.jpg" alt=""><div><b>回憶翻牌</b><span>翻開兩張一樣的照片</span></div><span class="reward">+3~8<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="catch"><img class="thumb" src="${face('face_68')}" alt=""><div><b>阿布接零食</b><span>左右滑動接住食物，巧克力、葡萄、洋蔥不能吃</span></div><span class="reward">+1~10<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>點兩塊交換位置，拼回原來的照片</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
@@ -635,15 +643,18 @@ function Puzzle(){
 }
 
 /* ================= 相簿 ================= */
+const albumList = () => [...pool()].filter(p=>!p.cat).sort((a,b)=>((b.taken?1:0)-(a.taken?1:0)) || ((b.taken||b.t||0)-(a.taken||a.t||0)));
 function Album(){
-  const list=[...pool()].filter(p=>!p.cat).sort((a,b)=>((b.taken?1:0)-(a.taken?1:0)) || ((b.taken||b.t||0)-(a.taken||a.t||0)));
+  const list=albumList();
   const s=h(`<section class="screen">
-    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">解鎖一張 ${UNLOCK_COST} 片餅乾，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
+    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">${PACK_COST} 片餅乾解鎖 ${PACK_SIZE} 張，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
       <button class="btn sm" id="upBtn"><svg><use href="#i-plus"/></svg>上傳</button></div>
+    <div id="reelBox"></div>
     <p class="progress" id="prog"></p>
     <div class="album" id="grid"></div>
   </section>`);
   main.appendChild(s);
+  $('#reelBox').replaceWith(reelStrip()); ensureTodayReel();
   $('#upBtn').onclick=()=>{ sfx.pop(); uploadDialog(); };
   const g=$('#grid');
   const open=list.filter(isOpen).length;
@@ -656,7 +667,7 @@ function Album(){
     const y=yearOf(p);
     if(y && y!==year){ year=y; g.appendChild(h(`<div class="month year">${y==='?'?'拍攝日期不明':y+' 年'}<span>${perYear[y]} 張</span></div>`)); }
     const un=isOpen(p), isNew=un&&!S.seen.includes(p.id)&&(isRecent(p)||S.unlocked.includes(p.id));
-    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock"/></svg>${UNLOCK_COST} 片餅乾</span>`}</button>`);
+    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock"/></svg>${PACK_COST} 片餅乾<small>解鎖 ${PACK_SIZE} 張</small></span>`}</button>`);
     el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): unlock(p); };
     if(API_URL&&!p.sample) longPress(el,()=>photoMenu(p,()=>go('album',true)));
     g.appendChild(el);
@@ -715,10 +726,14 @@ function longPress(el,fn){
   el.addEventListener('contextmenu',e=>e.preventDefault());
   el.style.userSelect='none'; el.style.webkitUserSelect='none';
 }
+/* 1 片餅乾解鎖 10 張：從點的這張開始，照相簿順序往下數 10 張還沒解鎖的 */
 function unlock(p){
-  if(S.bones<UNLOCK_COST){ sfx.bad(); toast(`還差 ${UNLOCK_COST-S.bones} 片餅乾，去玩小遊戲吧`); return; }
-  const m=modal(`<h3>解鎖這張回憶？</h3><p>用 ${UNLOCK_COST} 片餅乾，你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">解鎖</button><button class="btn ghost" data-close>先不要</button></div>`);
-  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-UNLOCK_COST); S.unlocked.push(p.id); save(); sfx.win(); bark(1); view(p); };
+  if(S.bones<PACK_COST){ sfx.bad(); toast(`還差 ${PACK_COST-S.bones} 片餅乾，去玩小遊戲吧`); return; }
+  const locked=albumList().filter(x=>!isOpen(x)), i=Math.max(0,locked.indexOf(p));
+  const pack=[...locked.slice(i),...locked.slice(0,i)].slice(0,PACK_SIZE);
+  if(!pack.includes(p)) pack.unshift(p);
+  const m=modal(`<h3>解鎖 ${pack.length} 張回憶？</h3><p>用 ${PACK_COST} 片餅乾，從這張開始往下解鎖 ${pack.length} 張。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">解鎖</button><button class="btn ghost" data-close>先不要</button></div>`);
+  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-PACK_COST); pack.forEach(x=>{ if(!S.unlocked.includes(x.id)) S.unlocked.push(x.id); }); save(); sfx.win(); bark(1); toast(`解鎖了 ${pack.length} 張！`); view(p); };
 }
 
 /* ================= 上傳 ================= */
@@ -1100,6 +1115,399 @@ function Quiz(){
     };
   });
   show();
+}
+
+/* ================= 阿布短片：每天一支 15 秒直式短片 =================
+ * 腳本（主題、挑哪些照片、字幕）由 Apps Script 每天做一支，全家看同一支；
+ * 這裡負責「剪輯」：照音樂節拍切換畫面、每張照片慢慢推近到阿布的臉、字幕、配樂。
+ * 剪輯規則：開頭第一格就放最強的照片＋大字，不淡入；每 1~2 秒換一次畫面、快切放後段；
+ * 切點全部落在拍子上；推近平移一律加減速、方向輪流換、幅度小；以硬切為主，小節開頭輕輕放大一下；收在定格。 */
+let REELS = lsGet('abu-reels')||[];               // 最近幾天的短片腳本（新的在前）
+let REELS_ON_SERVER = !!lsGet('abu-reels');       // 後端有沒有做短片（舊版 Apps Script 沒有）
+let reelState = '';                                // '' 還沒問、'loading' 問後端中、'done' 問完了
+const dayKey = (t=Date.now()) => { const d=new Date(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const hashStr = s => { let x=2166136261; for(const ch of String(s)){ x^=ch.codePointAt(0); x=Math.imul(x,16777619); } return x>>>0; };
+function seeded(seed){ let x=seed||1; return ()=>{ x=(x+0x6D2B79F5)|0; let t=Math.imul(x^(x>>>15),1|x); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+const headOf = p => (Array.isArray(p.head)&&p.head.length===4)? p.head : (Array.isArray(p.ears)&&p.ears.length===4)? p.ears : null;
+const REEL_MAX = {'歡樂':11,'溫馨':8,'搞笑':10};
+
+/* 沒有後端短片時（內建照片、舊版 Apps Script）：用日期當種子，自己挑一支 */
+function localReel(day){
+  const list=pool(); if(list.length<3) return null;
+  const seed=hashStr(day), rnd=seeded(seed);
+  const mood=['歡樂','溫馨','搞笑'][seed%3];
+  const picks=list.slice().sort(()=>rnd()-.5).slice(0,REEL_MAX[mood]);
+  const star=picks.findIndex(p=>p.ears); if(star>0) picks.unshift(picks.splice(star,1)[0]);
+  const say=['汪！','看我看我','我乖乖的喔','尾巴搖搖搖','今天也很帥','有零食嗎？','摸摸頭～','我才沒有在等你'];
+  const title=['看我看我','今天也很帥','阿布日常','汪！開演囉'][(seed>>>3)%4];
+  return { day, key:'local', name:'今天的阿布', mood, title, end:'明天也要陪我喔', local:true,
+    shots:picks.map((p,i)=>({id:p.id, say:i%2? '': say[(seed+i/2)%say.length]})) };
+}
+/* 腳本 → 照片（被刪掉的跳過） */
+function reelShots(r){
+  const byId={}; pool().forEach(p=>byId[p.id]=p);
+  const out=[]; (r.shots||[]).forEach(s=>{ const p=byId[s.id]; if(p&&!out.some(o=>o.p===p)) out.push({p,say:s.say||''}); });
+  return out.slice(0,REEL_MAX[r.mood]||11);
+}
+function reelList(){
+  const today=dayKey();
+  let list=[];
+  if(API_URL&&REELS_ON_SERVER&&PH_STATE!=='sample'&&PH_STATE!=='fail') list=REELS.filter(r=>r&&r.day&&r.day<=today);
+  if(!list.some(r=>r.day===today)&&(!API_URL||!REELS_ON_SERVER||PH_STATE==='fail'||reelState==='done')){ const l=localReel(today); if(l) list.unshift(l); }
+  return list.filter(r=>reelShots(r).length>=3);
+}
+async function ensureTodayReel(){
+  if(!API_URL||!REELS_ON_SERVER||reelState||REELS.some(r=>r.day===dayKey())) return;
+  reelState='loading';
+  try{
+    const r=await fetch(API_URL+'?action=reel'); const j=await r.json();
+    if(j.ok&&Array.isArray(j.reels)){ REELS=j.reels; lsSet('abu-reels',REELS); }
+  }catch(e){}
+  reelState='done';
+  if(current==='album') go('album',true);
+}
+
+/* 看短片：2 片餅乾解鎖一支，解鎖後可以一直重看 */
+const reelKey = r => r.day+'|'+r.key;
+const reelIsOpen = r => (S.reelOpen||[]).includes(reelKey(r));
+function playReel(list,idx){
+  const r=list[idx]; if(!r) return;
+  if(reelIsOpen(r)) return openReel(list,idx);
+  if(S.bones<REEL_COST){ sfx.bad(); toast(`看短片要 ${REEL_COST} 片餅乾，還差 ${REEL_COST-S.bones} 片，去玩小遊戲吧`,2600); return; }
+  const m=modal(`<h3>看「${esc(r.title)}」？</h3><p>用 ${REEL_COST} 片餅乾，看過之後可以一直重看。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">看短片</button><button class="btn ghost" data-close>先不要</button></div>`);
+  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-REEL_COST); S.reelOpen=[...(S.reelOpen||[]).slice(-60),reelKey(r)]; save(); openReel(list,idx); };
+}
+/* 相簿頁最上面：今天的短片（大卡）＋前幾天的（小卡） */
+function reelStrip(){
+  const list=reelList(), today=dayKey();
+  const box=h(`<section class="reels" aria-label="阿布短片"></section>`);
+  const waiting=API_URL&&REELS_ON_SERVER&&PH_STATE!=='fail'&&!list.some(r=>r.day===today)&&reelState!=='done';
+  if(!list.length&&!waiting) return box;
+  const cover=(r,w)=>{ const s=reelShots(r)[0]; if(!s) return ''; const hd=headOf(s.p);
+    const pos=hd? `object-position:${(hd[1]+hd[3])/20}% ${(hd[0]+hd[2])/20}%`:''; return pimg(s.p,w,`alt="" loading="lazy" style="${pos}"`); };
+  const md=d=>{ const [y,m,dd]=d.split('-').map(Number); return `${m}/${dd}`; };
+  const main=list[0]&&list[0].day===today? list[0]: null;
+  if(main){
+    const seen=(S.reelSeen||[]).includes(main.day+main.key);
+    const b=h(`<button class="reel-main" aria-label="播放今天的阿布短片：${esc(main.title)}">${cover(main,800)}
+      <span class="reel-meta"><span class="reel-tag">${seen?'今日短片':'今日短片・NEW'}</span><b>${esc(main.title)}</b><small>${esc(main.name)}・15 秒${reelIsOpen(main)?'':`・${REEL_COST} 片餅乾`}</small></span>
+      <span class="reel-play"><svg><use href="#i-play"/></svg></span></button>`);
+    b.onclick=()=>playReel(list,0);
+    box.appendChild(b);
+  }else if(waiting){
+    box.appendChild(h(`<div class="reel-main making"><span class="reel-meta"><span class="reel-tag">今日短片</span><b>阿布正在剪今天的短片…</b><small>等一下下就好</small></span></div>`));
+  }
+  const rest=list.filter(r=>r!==main);
+  if(rest.length){
+    const row=h(`<div class="reel-row"></div>`);
+    rest.forEach(r=>{
+      const b=h(`<button class="reel-mini" aria-label="播放 ${md(r.day)} 的短片：${esc(r.title)}">${cover(r,300)}${reelIsOpen(r)?'':`<em>${REEL_COST} 片餅乾</em>`}<span><i>${r.day===today?'今天':md(r.day)}</i><b>${esc(r.title)}</b></span></button>`);
+      b.onclick=()=>playReel(list,list.indexOf(r));
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+  }
+  return box;
+}
+
+/* ---------- 配樂：三種心情，在手機上即時合成（沒有版權問題，節拍完全精準） ---------- */
+const CH={C:[48,[60,64,67]],G:[43,[59,62,67]],Am:[45,[57,60,64]],F:[41,[57,60,65]],Dm:[38,[57,62,65]],Em:[40,[59,64,67]]};
+const SONGS={
+  '歡樂':{bpm:128,bars:8,style:'pop',gain:1,prog:['C','G','Am','F','C','G','F','G'],
+    mel:[[0,76,.5],[.5,79,.5],[1,84,1],[2,79,.5],[2.5,76,.5],[3,79,1],[4,74,.5],[4.5,79,.5],[5,83,1],[6,81,.5],[6.5,79,.5],[7,74,1],
+      [8,72,.5],[8.5,76,.5],[9,81,1],[10,79,.5],[10.5,76,.5],[11,72,1],[12,69,.5],[12.5,72,.5],[13,77,1],[14,76,.5],[14.5,77,.5],[15,79,1],
+      [16,76,.5],[16.5,79,.5],[17,84,1],[18,86,.5],[18.5,88,.5],[19,84,1],[20,86,1],[21,83,.5],[21.5,79,.5],[22,81,.5],[22.5,83,.5],[23,79,1],
+      [24,81,.5],[24.5,84,.5],[25,81,.5],[25.5,77,.5],[26,79,1],[27,81,1],[28,83,.5],[28.5,86,.5],[29,83,.5],[29.5,79,.5],[30,81,.5],[30.5,83,.5],[31,86,1]],end:84},
+  '溫馨':{bpm:96,bars:6,style:'warm',gain:1.4,prog:['C','G','Am','F','Dm','G'],
+    mel:[[0,76,1.5],[1.5,74,.5],[2,72,1],[3,67,1],[4,74,1.5],[5.5,72,.5],[6,71,1],[7,67,1],[8,72,1],[9,76,1],[10,81,1.5],[11.5,79,.5],
+      [12,77,1],[13,76,1],[14,72,1],[15,69,1],[16,74,1],[17,77,1],[18,81,1],[19,79,.5],[19.5,77,.5],[20,76,1],[21,74,1],[22,71,1],[23,74,1]],end:72},
+  '搞笑':{bpm:112,bars:7,style:'fun',gain:3.6,prog:['C','G','C','G','F','C','G'],boing:[15],
+    mel:[[0,72],[.5,76],[1,79],[1.5,76],[2,72],[3,67],[3.5,67],[4,71],[4.5,74],[5,79],[5.5,77],[6,74],[6.5,71],[7,67,.5],
+      [8,72],[8.5,76],[9,79],[9.5,76],[10,72],[11,67],[11.5,67],[12,71],[12.5,74],[13,79],[13.5,81],[14,83],
+      [16,69],[16.5,72],[17,77],[17.5,72],[18,69],[18.5,72],[19,77,.5],[20,79],[20.5,76],[21,72],[21.5,76],[22,79],[22.5,84],
+      [24,83],[24.5,82],[25,81],[25.5,80],[26,79,.5],[27,74],[27.5,71]],end:72},
+};
+const hz = m => 440*Math.pow(2,(m-69)/12);
+let SOFT=null;
+function softClip(){ if(SOFT) return SOFT; const n=2048; SOFT=new Float32Array(n); for(let i=0;i<n;i++){ const x=(i/(n-1)*2-1)*2, a=Math.abs(x); SOFT[i]=Math.sign(x)*(a<=.8? a : .8+.2*Math.tanh((a-.8)/.2)); } return SOFT; }
+function reelMusic(c,mood,dest){
+  const P=SONGS[mood]||SONGS['歡樂'], spb=60/P.bpm, beats=P.bars*4, src=[];
+  const out=c.createGain(); out.gain.value=P.gain||1; out.connect(dest);          // 三首歌音量拉齊
+  const noise=c.createBuffer(1,c.sampleRate,c.sampleRate); { const d=noise.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; }
+  const G=(v,dest=out)=>{ const g=c.createGain(); g.gain.value=v; g.connect(dest); return g; };
+  const env=(g,t,a,v,d)=>{ g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(v,t+a); g.gain.exponentialRampToValueAtTime(.0001,t+a+d); };
+  const osc=(type,f,t,end,dest)=>{ const o=c.createOscillator(); o.type=type; o.frequency.setValueAtTime(f,t); o.connect(dest); o.start(t); o.stop(end); src.push(o); return o; };
+  const nz=(t,end,dest)=>{ const s=c.createBufferSource(); s.buffer=noise; s.loop=true; s.connect(dest); s.start(t,Math.random()*.5); s.stop(end); src.push(s); return s; };
+  const filt=(type,f,q,dest)=>{ const b=c.createBiquadFilter(); b.type=type; b.frequency.value=f; if(q) b.Q.value=q; b.connect(dest); return b; };
+  const I={
+    kick(t,v){ const g=G(0); env(g,t,.003,v*.9,.32); const o=osc('sine',150,t,t+.4,g); o.frequency.exponentialRampToValueAtTime(42,t+.13); },
+    clap(t,v){ const g=G(0), f=filt('bandpass',1500,1,g); g.gain.setValueAtTime(.0001,t); [0,.011,.022].forEach(k=>{ g.gain.setValueAtTime(v,t+k); g.gain.exponentialRampToValueAtTime(v*.25,t+k+.009); }); g.gain.exponentialRampToValueAtTime(.0001,t+.2); nz(t,t+.22,f); },
+    snare(t,v){ const g=G(0), f=filt('bandpass',1900,.8,g); env(g,t,.002,v,.14); nz(t,t+.18,f); const g2=G(0); env(g2,t,.002,v*.6,.08); osc('triangle',190,t,t+.1,g2); },
+    hat(t,v,open){ const g=G(0), f=filt('highpass',7000,0,g); env(g,t,.002,v,open?.22:.035); nz(t,t+(open?.26:.06),f); },
+    rim(t,v){ const g=G(0), f=filt('bandpass',2400,4,g); env(g,t,.001,v,.03); nz(t,t+.05,f); const g2=G(0); env(g2,t,.001,v*.5,.025); osc('sine',1700,t,t+.04,g2); },
+    shaker(t,v){ const g=G(0), f=filt('bandpass',6500,.7,g); env(g,t,.012,v,.05); nz(t,t+.08,f); },
+    crash(t,v){ const g=G(0), f=filt('highpass',4500,0,g); env(g,t,.003,v,1.6); nz(t,t+1.7,f); },
+    block(t,fq,v){ const g=G(0), f=filt('bandpass',fq,6,g); env(g,t,.001,v,.05); osc('sine',fq,t,t+.07,f); },
+    bass(t,m,d,v){ const g=G(0), f=filt('lowpass',900,1,g); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(v,t+.006); g.gain.exponentialRampToValueAtTime(v*.55,t+.1); g.gain.setValueAtTime(v*.55,t+Math.max(.1,d-.06)); g.gain.exponentialRampToValueAtTime(.0001,t+d+.05);
+      osc('triangle',hz(m),t,t+d+.1,f); osc('sine',hz(m),t,t+d+.1,f); },
+    subBass(t,m,d,v){ const g=G(0); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(v,t+.03); g.gain.setValueAtTime(v,t+d-.15); g.gain.exponentialRampToValueAtTime(.0001,t+d+.1); osc('sine',hz(m),t,t+d+.15,g); osc('triangle',hz(m+12),t,t+d+.15,G(.12,g)); },
+    tuba(t,m,d,v){ const g=G(0), f=filt('lowpass',650,2,g); env(g,t,.012,v,d+.08); const o=osc('square',hz(m)*.97,t,t+d+.15,f); o.frequency.exponentialRampToValueAtTime(hz(m),t+.04); },
+    pluck(t,m,d,v){ const g=G(0), f=filt('lowpass',3400,1,g); f.frequency.setValueAtTime(3400,t); f.frequency.exponentialRampToValueAtTime(700,t+.25); env(g,t,.003,v,Math.max(.3,d));
+      osc('sawtooth',hz(m),t,t+d+.35,f); osc('triangle',hz(m)*1.003,t,t+d+.35,f); },
+    ep(t,m,d,v){ const g=G(0); env(g,t,.008,v,d+.5); osc('sine',hz(m),t,t+d+.6,g); osc('sine',hz(m)*2,t,t+d+.6,G(.22,g)); },
+    pad(t,ns,d,v){ const g=G(0), f=filt('lowpass',1100,.5,g); g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(v,t+.35); g.gain.setValueAtTime(v,t+d-.1); g.gain.exponentialRampToValueAtTime(.0001,t+d+.6);
+      ns.forEach(m=>[-7,7].forEach(ct=>{ const o=osc('sawtooth',hz(m),t,t+d+.7,f); o.detune.value=ct; })); },
+    bell(t,m,d,v){ const g=G(0); env(g,t,.003,v,Math.min(1.1,d+.5)); osc('sine',hz(m),t,t+d+.7,g); const g2=G(0); env(g2,t,.002,v*.22,.25); osc('sine',hz(m)*2.76,t,t+.3,g2); },
+    pizz(t,m,d,v){ const g=G(0), f=filt('lowpass',2600,1,g); env(g,t,.002,v,.12+d*.4); osc('triangle',hz(m),t,t+d+.3,f); osc('square',hz(m),t,t+d+.3,G(.08,f)); },
+    boing(t,v){ const g=G(0); env(g,t,.01,v,.32); const o=osc('sine',170,t,t+.4,g); o.frequency.exponentialRampToValueAtTime(760,t+.28); },
+  };
+  function start(t0){
+    const B=b=>t0+b*spb;
+    for(let bar=0;bar<P.bars;bar++){
+      const [root,tri]=CH[P.prog[bar]], b0=bar*4, last=bar===P.bars-1;
+      if(P.style==='pop'){
+        for(let q=0;q<4;q++) I.kick(B(b0+q),bar?1:.8);
+        if(bar>0){ I.clap(B(b0+1),.45); I.clap(B(b0+3),.45); }
+        for(let e=0;e<8;e++) I.hat(B(b0+e/2),e%2?.16:.07,bar%2===1&&e===7);
+        if(last) for(let s=0;s<4;s++) I.snare(B(b0+3+s/4),.18+s*.07);
+        { const pat=[0,0,12,0,0,12,0,7]; pat.forEach((k,e)=>I.bass(B(b0+e/2),root+k,spb*.42,bar?.42:.3)); }
+        [[0,1,1],[2,.5,.7],[3,.5,.55],[5,.5,.7],[6,.5,.55],[7,.5,.75]].forEach(([e,len,v],k)=>{
+          const up=k%2===1, ns=up? tri.slice().reverse(): tri;
+          ns.forEach((m,j)=>I.pluck(B(b0+e/2)+j*.012,m,spb*len,.09*v));
+        });
+      }else if(P.style==='warm'){
+        I.pad(B(b0),tri,spb*4,.035);
+        const tones=[tri[0],tri[1],tri[2],tri[0]+12];
+        [0,1,2,3,2,1,2,3].forEach((k,e)=>I.ep(B(b0+e/2),tones[k],spb*.9,e%2?.07:.1));
+        I.subBass(B(b0),root+12,spb*2.4,.3); I.subBass(B(b0+2.5),root+12,spb*1.4,.24);
+        if(bar>0){ I.kick(B(b0),.7); I.kick(B(b0+2.5),.5); I.rim(B(b0+1),.3); I.rim(B(b0+3),.3); for(let e=0;e<8;e++) I.shaker(B(b0+e/2),e%2?.05:.08); }
+      }else{
+        I.tuba(B(b0),root,spb*.35,.32); I.tuba(B(b0+2),root+7,spb*.35,.28);
+        [1,3].forEach(q=>tri.forEach(m=>I.pluck(B(b0+q),m,spb*.18,.07)));
+        for(let q=0;q<4;q++) I.block(B(b0+q+.5),q%2?900:1250,.18);
+        if(bar>0){ I.kick(B(b0),.34); I.kick(B(b0+2),.28); I.clap(B(b0+1),.2); I.clap(B(b0+3),.2); }
+      }
+    }
+    P.mel.forEach(([b,m,len])=>{
+      if(P.style==='pop') I.bell(B(b),m,spb*len,.16);
+      else if(P.style==='warm') I.bell(B(b),m,spb*len,.13);
+      else I.pizz(B(b),m,spb*(len||.25),.2);
+    });
+    (P.boing||[]).forEach(b=>I.boing(B(b),.22));
+    const E=B(beats), [r0,t0c]=CH.C;
+    I.kick(E,P.style==='fun'?.4:1); I.crash(E,P.style==='fun'?.1:.22);
+    if(P.style==='pop'){ t0c.forEach(m=>I.pluck(E,m,1.4,.1)); I.bass(E,r0,1.2,.4); I.bell(E,P.end,1.4,.18); }
+    else if(P.style==='warm'){ I.pad(E,t0c,1.8,.04); t0c.forEach(m=>I.ep(E,m,1.6,.08)); I.subBass(E,r0+12,1.6,.3); I.bell(E,P.end,1.6,.14); }
+    else { t0c.forEach(m=>{ I.pluck(B(beats-.5),m,spb*.2,.07); I.pluck(E,m,1.1,.08); }); I.tuba(E,r0,.6,.32); I.pizz(E,P.end,.5,.2); I.pizz(E,P.end+12,.5,.1); }
+  }
+  return { bpm:P.bpm, bars:P.bars, spb, beats, start, stop(){ src.forEach(s=>{ try{ s.stop(); }catch(e){} }); } };
+}
+
+/* 每張照片幾拍：第一張 4 拍（壓開頭大字），最後一張 4 拍（收尾定格），中間 2/4/8 拍，快切放在後段越剪越快 */
+function reelTiming(n,bars){
+  const mid=Math.max(0,n-2), T=(bars-2)*4, d=[];
+  if(!mid) return n<2? [bars*4] : [4,bars*4-4];
+  if(mid*4>=T){
+    const twos=Math.min(mid,2*mid-T/2), pairs=twos/2; let fours=mid-twos, p=pairs;
+    const seq=[]; while(fours||p){ if(p){ seq.unshift(2,2); p--; } if(fours){ seq.unshift(4); fours--; } }
+    d.push(...seq);
+  }else{
+    const units=bars-2, base=Math.floor(units/mid); let extra=units-base*mid;
+    for(let i=0;i<mid;i++){ d.push((base+(extra>0?1:0))*4); extra--; }
+  }
+  return [4,...d,4];
+}
+
+/* ---------- 播放器 ---------- */
+function openReel(list,idx){
+  const reel=list[idx]; if(!reel) return;
+  const c=ac();                                            // 一定要在點擊當下叫醒聲音（iPhone 的規定）
+  try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}   // iPhone 靜音鍵開著也有聲音
+  const items=reelShots(reel);
+  const P=SONGS[reel.mood]||SONGS['歡樂'];
+  const md=d=>{ const a=d.split('-').map(Number); return `${a[1]}/${a[2]}`; };
+  const ov=h(`<div class="reel-ov" role="dialog" aria-label="阿布短片：${esc(reel.title)}">
+    <div class="reel-shots"></div><div class="reel-flash"></div>
+    <div class="reel-title" hidden></div><div class="reel-say" hidden></div>
+    <div class="reel-top"><div class="reel-bar"><i></i></div>
+      <div class="reel-head"><span class="rname">${esc(reel.name)}</span><span class="rday">${reel.day===dayKey()?'今天':md(reel.day)}</span>
+      <button class="reel-btn" data-a="mute" aria-label="聲音開關"><svg><use href="${S.sound?'#i-snd-w':'#i-mute-w'}"/></svg></button>
+      <button class="reel-btn" data-a="close" aria-label="關閉短片"><svg><use href="#i-x-w"/></svg></button></div></div>
+    <div class="reel-load"><img src="${face('face_143')}" alt=""><b>阿布準備中…</b><span>0 / ${items.length}</span></div>
+    <div class="reel-paused" hidden><svg><use href="#i-play"/></svg></div>
+  </div>`);
+  app.appendChild(ov);
+  const $$=s=>ov.querySelector(s), shotsEl=$$('.reel-shots'), bar=$$('.reel-bar i'), titleEl=$$('.reel-title'), sayEl=$$('.reel-say'), flash=$$('.reel-flash');
+  let alive=true, raf=0, music=null, bus=null, useAudio=false, t0=0, perfBase=0, perfOff=0, paused=false, started=false, ended=false;
+  let shots=[], cur=-1, sayAt=-9, W=0, H=0, TOTAL=0, TAIL=1.8;
+  const spb=60/P.bpm;
+
+  /* 載照片：用大一點的圖（推近才不會糊），失敗就換備用網址 */
+  const loadOne=p=>new Promise(res=>{
+    const im=new Image(); im.decoding='async';
+    im.onload=()=>{ (im.decode? im.decode().catch(()=>{}): Promise.resolve()).then(()=>res(im)); };
+    im.onerror=()=>{ if(!p.sample&&!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w1600`; } else res(null); };
+    im.src= p.url || `https://lh3.googleusercontent.com/d/${p.id}=s1600`;
+  });
+  let got=0;
+  const timeout=new Promise(r=>setTimeout(()=>r('timeout'),15000));
+  const loads=items.map(it=>loadOne(it.p).then(im=>{ got++; const s=$$('.reel-load span'); if(s) s.textContent=`${got} / ${items.length}`; it.im=im; return im; }));
+  Promise.race([Promise.all(loads),timeout]).then(()=>{
+    if(!alive) return;
+    shots=items.filter(it=>it.im&&it.im.naturalWidth);
+    if(shots.length<3){ $$('.reel-load').innerHTML=`<img src="${face('face_143')}" alt=""><b>照片載入失敗</b><span>網路不穩，等一下再試</span>`; return; }
+    begin();
+  });
+
+  function begin(){
+    const beatsOf=reelTiming(shots.length,P.bars); let b=0;
+    shots.forEach((s,i)=>{
+      s.b0=b; s.beats=beatsOf[i]; b+=s.beats;
+      s.say = i===shots.length-1? (reel.end||s.say) : i===0? '' : s.say;
+      const wrap=document.createElement('div'); wrap.className='reel-shot'; shotsEl.appendChild(wrap);   // 不要用 h()：template 裡的元素會讓照片重新載入
+      s.im.alt=''; s.im.draggable=false; wrap.appendChild(s.im); s.el=wrap;
+    });
+    TOTAL=P.bars*4*spb;
+    layout();
+    $$('.reel-load').remove();
+    titleEl.textContent=reel.title||reel.name; titleEl.hidden=false;
+    { const s0=shots[0], hd=headOf(s0.p);                  // 開頭大字不要蓋住阿布的臉：臉在上半部就把字放下面
+      if(hd){ const S2=s0.s0*s0.B.k, cy=Math.min(Math.max(s0.B.cy,H/2/S2),s0.h-H/2/S2), y=H/2+((hd[0]+hd[2])/2000*s0.h-cy)*S2; titleEl.style.top= y<H*.5? '58%':'16%'; } }
+    /* 開始：有聲音就用聲音的時鐘，畫面和拍子完全對齊 */
+    if(c&&c.state==='running'){
+      useAudio=true;
+      bus=c.createGain(); bus.gain.value=S.sound?1:0;
+      const comp=c.createDynamicsCompressor(); comp.threshold.value=-16; comp.ratio.value=4; comp.attack.value=.004; comp.release.value=.2;
+      const master=c.createGain(); master.gain.value=.6;
+      const pre=c.createGain(); pre.gain.value=.5; const lim=c.createWaveShaper(); lim.curve=softClip(); lim.oversample='2x';   // 保護耳朵：超過的音量柔和壓住，不會爆音
+      bus.connect(comp).connect(master).connect(pre).connect(lim).connect(c.destination);
+      bus._chain=[comp,master,pre,lim];
+      music=reelMusic(c,reel.mood,bus);
+      t0=c.currentTime+.12; music.start(t0);
+    }else{ perfBase=performance.now()/1000+.05; }
+    started=true; paint(0); raf=requestAnimationFrame(frame);
+  }
+  const now=()=> useAudio? c.currentTime-t0 : (paused? perfOff : perfOff+performance.now()/1000-perfBase);
+
+  /* Ken Burns：每張照片決定起點和終點（倍率、中心），終點盡量停在阿布的臉 */
+  function layout(){
+    W=ov.clientWidth; H=ov.clientHeight;
+    const dpr=Math.min(3,window.devicePixelRatio||1);
+    const MOVES=['pan','out','in','pan','in','out']; let pans=0;
+    shots.forEach((s,i)=>{
+      const w=s.im.naturalWidth, hh=s.im.naturalHeight, s0=Math.max(W/w,H/hh);
+      s.w=w; s.h=hh; s.s0=s0;
+      s.im.style.width=w*s0+'px'; s.im.style.height=hh*s0+'px';
+      const last=i===shots.length-1, dur=s.beats*spb+(last?TAIL:0);
+      let type= i===0||last? 'in' : MOVES[(i-1)%MOVES.length];
+      const hd=headOf(s.p);
+      let fx=w/2, fy=hh*.42, kf=1.12;
+      if(hd){ fx=(hd[1]+hd[3])/2000*w; fy=(hd[0]+hd[2])/2000*hh; const hs=Math.max((hd[3]-hd[1])/1000*w,(hd[2]-hd[0])/1000*hh)*s0; kf=Math.min(1.42,Math.max(1.08,Math.min(W,H)*.66/hs)); }
+      kf=Math.min(kf, Math.pow(1.16,Math.max(1,dur)), Math.max(1.05,2.1/(s0*dpr)));   // 慢慢推：每秒最多放大 16%，也不超過照片解析度
+      const lerp=(a,b,t)=>a+(b-a)*t, F={k:kf,cx:fx,cy:fy}, soft={k:1,cx:lerp(w/2,fx,.45),cy:lerp(hh/2,fy,.45)};
+      s.A=soft; s.B=F;
+      if(type==='pan'){
+        const k=1.05, S2=s0*k, hw=W/2/S2, hh2=H/2/S2, travel=W*.2*dur/S2;   // 平移速度：每秒約 1/5 個畫面寬
+        const dir=pans++%2? -1: 1;
+        if(w-2*hw>w*.1){ const bx=Math.min(Math.max(fx,hw),w-hw); const ax=Math.min(Math.max(bx-dir*travel,hw),w-hw); if(Math.abs(bx-ax)>w*.03){ s.A={k,cx:ax,cy:fy}; s.B={k,cx:bx,cy:fy}; type='done'; } }
+        if(type==='pan'&&hh-2*hh2>hh*.1){ const by=Math.min(Math.max(fy,hh2),hh-hh2); const ay=Math.min(Math.max(by+dir*H*.2*dur/S2,hh2),hh-hh2); if(Math.abs(by-ay)>hh*.03){ s.A={k,cx:fx,cy:ay}; s.B={k,cx:fx,cy:by}; type='done'; } }
+        if(type==='pan') type= dir>0? 'in':'out';
+      }
+      if(type==='out'){ s.A=F; s.B=soft; }
+      s.dur=dur; s.first=i===0;
+    });
+    if(cur>=0) paint(now());
+  }
+  const easeIO=x=>-(Math.cos(Math.PI*x)-1)/2, easeO=x=>Math.sin(x*Math.PI/2), easeOC=x=>1-Math.pow(1-x,3);
+  function place(s,p,punch){
+    const e=s.first? easeO(p): easeIO(p);
+    const k=s.A.k*Math.pow(s.B.k/s.A.k,e)*punch, S2=s.s0*k, hw=W/2/S2, hh=H/2/S2;
+    const cx=Math.min(Math.max(s.A.cx+(s.B.cx-s.A.cx)*e,hw),s.w-hw), cy=Math.min(Math.max(s.A.cy+(s.B.cy-s.A.cy)*e,hh),s.h-hh);
+    s.im.style.transform=`translate3d(${(W/2-cx*S2).toFixed(2)}px,${(H/2-cy*S2).toFixed(2)}px,0) scale(${k.toFixed(4)})`;
+  }
+  function say(text,big){
+    sayEl.textContent=text; sayEl.hidden=!text; sayEl.classList.toggle('big',!!big);
+    sayEl.classList.remove('pop'); void sayEl.offsetWidth; if(text) sayEl.classList.add('pop');
+  }
+  function paint(t){
+    const beat=t/spb;
+    let i=shots.findIndex(s=>beat<s.b0+s.beats); if(i<0) i=shots.length-1;
+    const s=shots[i];
+    if(i!==cur){
+      if(cur>=0) shots[cur].el.classList.remove('on');
+      s.el.classList.add('on'); cur=i;
+      if(i>=1) titleEl.hidden=true;
+      if(s.say){ say(s.say,i===shots.length-1); sayAt=t; }
+    }
+    if(!s.say&&t-sayAt>2.6&&!sayEl.hidden) sayEl.hidden=true;
+    const st=s.b0*spb, since=t-st;
+    const onBar=i>0&&s.b0%4===0, punch= onBar&&since<.26? 1+.055*(1-easeOC(Math.max(0,since)/.26)) : 1;
+    place(s,Math.min(1,Math.max(0,since/s.dur)),punch);
+    flash.style.opacity= i===1&&since<.22? (.45*(1-since/.22)).toFixed(3) : 0;
+    bar.style.width=Math.min(100,t/TOTAL*100)+'%';
+  }
+  function frame(){
+    if(!alive) return;
+    const t=Math.max(0,now());
+    paint(t);
+    if(!ended&&t>=TOTAL+.35) finish();
+    if(t<TOTAL+TAIL+.2) raf=requestAnimationFrame(frame);
+  }
+  function finish(){
+    ended=true;
+    const first=!(S.reelSeen||[]).includes(reel.day+reel.key);
+    if(first){ S.reelSeen=[...(S.reelSeen||[]).slice(-30),reel.day+reel.key]; save(); addLove(2); }
+    const older=list[idx+1];
+    const end=h(`<div class="reel-end">
+      <img class="face-img" src="${face('face_66')}" alt="">
+      <h3>${esc(reel.name)}</h3>
+      ${first?'<div class="gain">阿布好感 +2</div>':''}
+      <div class="row"><button class="btn" data-a="again">再看一次</button>${older?`<button class="btn ghost-w" data-a="next">看 ${older.day===dayKey()?'今天':md(older.day)} 的${reelIsOpen(older)?'':`（${REEL_COST} 片）`}</button>`:''}</div>
+      <button class="btn ghost-w" data-a="close">回相簿</button>
+    </div>`);
+    ov.appendChild(end);
+    if(first) setTimeout(()=>{ bark(2); },350);
+  }
+  function stopAudio(){
+    if(music){ try{ bus.gain.setTargetAtTime(0,c.currentTime,.03); }catch(e){} const m=music, b=bus; setTimeout(()=>{ m.stop(); try{ b.disconnect(); b._chain.forEach(n=>n.disconnect()); }catch(e){} },200); music=null; }
+    if(c&&c.state==='suspended') c.resume();
+  }
+  function close(){
+    if(!alive) return; alive=false; cancelAnimationFrame(raf); stopAudio();
+    document.removeEventListener('visibilitychange',onVis); window.removeEventListener('resize',onResize);
+    ov.remove();
+    if(current==='album') go('album',true);
+  }
+  function togglePause(){
+    if(!started||ended) return;
+    paused=!paused; $$('.reel-paused').hidden=!paused;
+    if(useAudio){ paused? c.suspend(): c.resume(); }
+    else if(paused){ perfOff=perfOff+performance.now()/1000-perfBase; } else { perfBase=performance.now()/1000; }
+    if(!paused){ cancelAnimationFrame(raf); raf=requestAnimationFrame(frame); }
+  }
+  const onVis=()=>{ if(document.hidden&&!paused&&!ended) togglePause(); };
+  const onResize=()=>{ if(started) layout(); };
+  document.addEventListener('visibilitychange',onVis); window.addEventListener('resize',onResize);
+
+  /* 操作：點一下暫停、往上滑看前一天、往下滑看後一天 */
+  let y0=null, x0=null;
+  ov.addEventListener('pointerdown',e=>{ y0=e.clientY; x0=e.clientX; });
+  ov.addEventListener('pointerup',e=>{
+    const btn=e.target.closest('[data-a]');
+    if(btn){ const a=btn.dataset.a; y0=null;
+      if(a==='close') return close();
+      if(a==='mute'){ S.sound=!S.sound; save(); renderTop(); btn.querySelector('use').setAttribute('href',S.sound?'#i-snd-w':'#i-mute-w'); if(bus) bus.gain.setTargetAtTime(S.sound?1:0,c.currentTime,.05); return; }
+      if(a==='again'){ close(); return openReel(list,idx); }
+      if(a==='next'){ close(); return playReel(list,idx+1); }
+      return;
+    }
+    if(y0===null) return;
+    const dy=e.clientY-y0, dx=e.clientX-x0; y0=null;
+    if(dy<-70&&Math.abs(dy)>Math.abs(dx)){ if(list[idx+1]){ close(); playReel(list,idx+1); } return; }
+    if(dy>70&&Math.abs(dy)>Math.abs(dx)){ close(); if(list[idx-1]) playReel(list,idx-1); return; }
+    if(Math.abs(dy)<12&&Math.abs(dx)<12&&!ended) togglePause();
+  });
+  ov.addEventListener('contextmenu',e=>e.preventDefault());
 }
 
 /* ---------------- 啟動 ---------------- */
