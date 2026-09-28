@@ -1324,6 +1324,37 @@ function Car(){
   cleanup=()=>{ phase='over'; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown',onKey); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
+/* 卡通柴犬身體（從後面看）：赤柴毛色、白襪子、屁屁的白毛（裏白）、黃黑條紋項圈，還有像肉桂捲一樣會搖的捲捲尾巴 */
+function shibaBody(c,ax,y,r,step,wagHz,wagAmp){
+  const INK='#2B2723', RED='#D9772B', RED2='#B85E1C', CREAM='#FBEBD6';
+  const tt=performance.now()/1000, leg=Math.sin(step)*r*.16;
+  c.save(); c.lineJoin='round'; c.lineCap='round';
+  c.fillStyle='rgba(43,39,35,.16)'; c.beginPath(); c.ellipse(ax,y+r*2.62,r*1.05,r*.28,0,0,7); c.fill();
+  c.strokeStyle=INK; c.lineWidth=2.4;
+  [[-1,leg],[1,-leg]].forEach(([sd,o])=>{                                   // 後腳：大腿＋白襪子，走路一前一後
+    c.fillStyle=RED; c.beginPath(); c.ellipse(ax+sd*r*.58,y+r*2.25+o,r*.3,r*.38,sd*.12,0,7); c.fill(); c.stroke();
+    c.fillStyle=CREAM; c.beginPath(); c.ellipse(ax+sd*r*.62,y+r*2.56+o,r*.22,r*.14,0,0,7); c.fill(); c.stroke();
+  });
+  c.fillStyle=RED; c.beginPath();                                            // 身體：肩膀窄、屁股圓
+  c.moveTo(ax-r*.45,y+r*.85); c.bezierCurveTo(ax-r*1.05,y+r*1.3,ax-r*1.05,y+r*2.45,ax,y+r*2.5); c.bezierCurveTo(ax+r*1.05,y+r*2.45,ax+r*1.05,y+r*1.3,ax+r*.45,y+r*.85); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle=CREAM; c.beginPath();                                          // 屁屁的白毛
+  c.moveTo(ax,y+r*2.02); c.bezierCurveTo(ax-r*.2,y+r*1.9,ax-r*.6,y+r*2.02,ax-r*.5,y+r*2.3); c.quadraticCurveTo(ax-r*.35,y+r*2.48,ax,y+r*2.48); c.quadraticCurveTo(ax+r*.35,y+r*2.48,ax+r*.5,y+r*2.3); c.bezierCurveTo(ax+r*.6,y+r*2.02,ax+r*.2,y+r*1.9,ax,y+r*2.02); c.fill();
+  const wag=Math.sin(tt*wagHz)*wagAmp;                                       // 捲捲尾巴：圓圓一圈捲在背上，以尾巴根為軸左右搖
+  c.save(); c.translate(ax,y+r*1.98); c.rotate(wag);
+  const tr=r*.42, cy=-r*.5;
+  c.fillStyle='rgba(43,39,35,.18)'; c.beginPath(); c.ellipse(r*.06,cy+r*.1,tr*1.02,tr*.95,0,0,7); c.fill();          // 尾巴影子
+  c.fillStyle=RED; c.strokeStyle=INK; c.lineWidth=2.4; c.beginPath(); c.arc(0,cy,tr,0,7); c.fill(); c.stroke();         // 外圈
+  c.strokeStyle=CREAM; c.lineWidth=tr*.22; c.beginPath(); c.arc(0,cy,tr*.72,Math.PI*.15,Math.PI*1.05); c.stroke();     // 捲起來露出的白毛
+  c.fillStyle=RED2; c.strokeStyle=INK; c.lineWidth=2; c.beginPath(); c.arc(tr*.2,cy-tr*.18,tr*.3,0,7); c.fill(); c.stroke();   // 中間的洞
+  c.strokeStyle=INK; c.lineWidth=2; c.beginPath(); c.arc(tr*.12,cy-tr*.08,tr*.6,Math.PI*1.05,Math.PI*1.75); c.stroke();   // 捲的紋路
+  c.fillStyle=CREAM; c.beginPath(); c.arc(tr*.26,cy-tr*.24,tr*.12,0,7); c.fill();                                       // 尾巴尖白毛
+  c.restore();
+  const ny=y+r*1.12;                                                         // 黃黑條紋項圈（阿布的招牌）
+  c.save(); c.beginPath(); c.roundRect? c.roundRect(ax-r*.52,ny-r*.11,r*1.04,r*.22,r*.11): c.rect(ax-r*.52,ny-r*.11,r*1.04,r*.22); c.clip();
+  for(let k=-6;k<7;k++){ c.fillStyle=k%2? '#F2C230':INK; c.beginPath(); c.moveTo(ax+k*r*.14,ny-r*.13); c.lineTo(ax+k*r*.14+r*.14,ny-r*.13); c.lineTo(ax+k*r*.14+r*.06,ny+r*.13); c.lineTo(ax+k*r*.14-r*.08,ny+r*.13); c.fill(); }
+  c.restore(); c.strokeStyle=INK; c.lineWidth=2; c.beginPath(); c.roundRect? c.roundRect(ax-r*.52,ny-r*.11,r*1.04,r*.22,r*.11): c.rect(ax-r*.52,ny-r*.11,r*1.04,r*.22); c.stroke();
+  c.restore();
+}
 /* ================= 小遊戲：陪阿布散步（阿布怕人多、怕鞭炮） =================
  * 左右拖著阿布走。靠近人群、被鞭炮嚇到，阿布「想回家」就越高；越想回家就拉著你走越快、越難閃。
  * 撿草地和餅乾讓他放鬆。想回家滿了，阿布就拖著你衝回家——比誰散步走得最遠，每 20 公尺換 1 片餅乾。 */
@@ -1422,14 +1453,8 @@ function Walk(){
     const r=ar(), run=speed/60, jig=freezeT>0? (Math.random()-.5)*4 : Math.sin(walked/(9-Math.min(5,run)))*2, ax=x+jig, y=ay()+(bump>0? -Math.sin(bump*Math.PI)*14:0);
     const taut=want>.6;                                          // 越想回家，牽繩拉得越緊
     ctx.strokeStyle='#C8452F'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(ax,y+r*.9); taut? ctx.lineTo(W/2,H+10) : ctx.quadraticCurveTo((ax+W/2)/2,H-20,W/2,H+10); ctx.stroke();
-    ctx.fillStyle='rgba(43,39,35,.16)'; ctx.beginPath(); ctx.ellipse(ax,y+r*2.05,r*.9,r*.3,0,0,7); ctx.fill();
+    shibaBody(ctx,ax,y,r,t*(6+run*3),freezeT>0? 1.5 : want>.6? 16 : 9, freezeT>0? .12 : want>.6? .5 : .35);
     ctx.strokeStyle=INK; ctx.lineWidth=2.5;
-    const leg=Math.sin(t*(6+run*3))*r*.18; ctx.fillStyle='#D9772B';
-    [[-.45,leg],[.45,-leg]].forEach(([lx,o])=>{ ctx.beginPath(); ctx.ellipse(ax+lx*r,y+r*1.95+o*.3,r*.16,r*.24,0,0,7); ctx.fill(); ctx.stroke(); });
-    ctx.beginPath(); ctx.ellipse(ax,y+r*1.25,r*.78,r*.9,0,0,7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(ax,y+r*1.35,r*.42,r*.6,0,0,7); ctx.fill();
-    const wag=Math.sin(t*(freezeT>0?2:want>.6?20:12))*.5;
-    ctx.save(); ctx.translate(ax+r*.6,y+r*1.7); ctx.rotate(wag); ctx.fillStyle='#D9772B'; ctx.beginPath(); ctx.arc(0,0,r*.28,0,7); ctx.fill(); ctx.stroke(); ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.arc(0,0,r*.12,0,7); ctx.fill(); ctx.restore();
     ctx.save(); ctx.beginPath(); ctx.arc(ax,y,r+4,0,7); ctx.fillStyle= want>.7? '#EE8597':'#F2C230'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(ax,y,r,0,7); ctx.clip();
     const im=F[faceK]; if(im&&im.complete) ctx.drawImage(im,ax-r,y-r,r*2,r*2); ctx.restore();
     if(want>.6){ ctx.fillStyle='#7FB3D5'; ctx.beginPath(); ctx.ellipse(ax+r+6,y-r*.4+Math.sin(t*6)*2,3,5,0,0,7); ctx.fill(); }
