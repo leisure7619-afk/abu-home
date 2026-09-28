@@ -782,52 +782,73 @@ async function takenTime(file){
   return 0;   // 照片裡沒有拍攝時間（例如 LINE 轉存的）就不猜，當作日期不明
 }
 const CAT_LABEL = {'':'相簿','美食':'美食','洗澡':'洗澡','上廁所':'上廁所'};
+/* 影片：切成 8MB 一塊，一塊一塊傳給 Apps Script，再由它接到雲端硬碟（沒有大小問題，金鑰也不外露） */
+const VCHUNK = 8*1024*1024, MAX_VIDEO_MB = 300;
+const toB64 = blob => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('讀不出這支影片')); r.readAsDataURL(blob); });
+async function uploadVideo(f,by,onPct){
+  if(f.size>MAX_VIDEO_MB*1024*1024) throw new Error(`影片太大（上限 ${MAX_VIDEO_MB}MB），先在手機上剪短再傳`);
+  const {token}=await api({action:'vstart',name:f.name||'abu.mov',mime:f.type||'video/quicktime',size:f.size,by});
+  let j=null;
+  for(let start=0;start<f.size;start+=VCHUNK){
+    const data=await toB64(f.slice(start,Math.min(f.size,start+VCHUNK)));
+    for(let tries=0;;tries++){                                        // 網路不穩：同一塊最多再試 2 次
+      try{ j=await api({action:'vchunk',token,start,total:f.size,data}); break; }
+      catch(e){ if(tries>=2) throw e; await new Promise(r=>setTimeout(r,1500)); }
+    }
+    onPct(Math.min(100,Math.round((start+VCHUNK)/f.size*100)));
+  }
+  if(!j||!j.photo) throw new Error('上傳沒有完成');
+  return j.photo;
+}
 function uploadDialog(){
   if(!API_URL){ toast('還沒接上雲端硬碟：請先在 config.js 填入 API 網址'); return; }
   const back=current;
-  const m=modal(`<h3>上傳阿布的照片</h3>
-    <p class="meta">選照片就好，不用分類也不用寫字：AI 會看照片，美食、洗澡、上廁所的放進「日常」，其他的放相簿，還會幫每張寫一句回憶。</p>
-    <p class="meta">影片不從這裡傳：請用手機的 Google 雲端硬碟 App，放進「阿布照片／影片」資料夾。</p>
+  const m=modal(`<h3>上傳照片／影片</h3>
     ${whoField('upBy','例：媽媽、小明')}
-    <label class="picker drop"><svg><use href="#i-album"/></svg><b>選照片</b><span>可以一次選很多張</span><input type="file" id="upFiles" accept="image/*" multiple></label>
+    <label class="picker drop"><svg><use href="#i-album"/></svg><b>選照片或影片</b><span>可以一次選很多個</span><input type="file" id="upFiles" accept="image/*,video/*" multiple></label>
     <div class="uplist" id="uplist"></div>
     <div class="row"><button class="btn" id="upGo" disabled>上傳</button><button class="btn ghost" data-close>取消</button></div>`,()=>go(back,true));
   const el=m.el, listEl=el.querySelector('#uplist'), goBtn=el.querySelector('#upGo');
   bindWho(el);
   let rows=[];
+  const isV=f=>/^video\//.test(f.type)||/\.(mov|mp4|m4v|3gp)$/i.test(f.name||'');
   el.querySelector('#upFiles').onchange=e=>{
     const files=[...e.target.files].slice(0,20);
-    if(e.target.files.length>20) toast('一次最多 20 張，先傳前 20 張');
+    if(e.target.files.length>20) toast('一次最多 20 個，先傳前 20 個');
     rows.forEach(r=>URL.revokeObjectURL(r.prev));
     listEl.innerHTML=''; rows=files.map(f=>{
-      const prev=URL.createObjectURL(f);
-      const row=h(`<div class="uprow"><img src="${prev}" alt=""><span class="upname">${esc(f.name||'照片')}</span><span class="st"></span></div>`);
-      listEl.appendChild(row); return {f,prev,row};
+      const prev=URL.createObjectURL(f), v=isV(f);
+      const row=h(`<div class="uprow">${v?`<video src="${prev}#t=0.1" muted playsinline preload="metadata"></video>`:`<img src="${prev}" alt="">`}<span class="upname">${esc(f.name||(v?'影片':'照片'))}</span><span class="st"></span></div>`);
+      listEl.appendChild(row); return {f,prev,row,v};
     });
-    goBtn.disabled=!rows.length; goBtn.textContent=`上傳 ${rows.length} 張`;
-    const pk=el.querySelector('.picker b'); if(pk) pk.textContent=rows.length?`已選 ${rows.length} 張（重選）`:'選照片';
+    goBtn.disabled=!rows.length; goBtn.textContent=`上傳 ${rows.length} 個`;
+    const pk=el.querySelector('.picker b'); if(pk) pk.textContent=rows.length?`已選 ${rows.length} 個（重選）`:'選照片或影片';
   };
   goBtn.onclick=async()=>{
     const by=el.querySelector('#upBy').value.trim(); if(by){ S.me=by; save(); }
     goBtn.disabled=true; el.dataset.busy='1';
-    let ok=0; const count={'':0,'美食':0,'洗澡':0,'上廁所':0};
+    let ok=0;
     for(let i=0;i<rows.length;i++){
       const r=rows[i], st=r.row.querySelector('.st');
       goBtn.textContent=`上傳中 ${i+1} / ${rows.length}`; st.textContent='…'; st.className='st';
       try{
-        const [data,taken]=await Promise.all([compress(r.f),takenTime(r.f)]);
-        const j=await api({action:'upload',data,taken,mime:'image/jpeg',name:(r.f.name||'abu.jpg').replace(/\.\w+$/,'')+'.jpg',by});
-        const p=j.photo; PH.push(p); S.unlocked.push(p.id); ok++; count[p.cat||'']=(count[p.cat||'']||0)+1;
-        st.textContent=CAT_LABEL[p.cat||'']; st.className='st cat cat-'+(p.cat||'mem');
-      }catch(e){ st.textContent='!'; st.className='st err'; st.title=e.message; }
+        let p;
+        if(r.v) p=await uploadVideo(r.f,by,pct=>{ st.textContent=pct+'%'; });
+        else{
+          const [data,taken]=await Promise.all([compress(r.f),takenTime(r.f)]);
+          p=(await api({action:'upload',data,taken,mime:'image/jpeg',name:(r.f.name||'abu.jpg').replace(/\.\w+$/,'')+'.jpg',by})).photo;
+        }
+        PH.push(p); S.unlocked.push(p.id); ok++;
+        st.textContent=r.v? '影片' : CAT_LABEL[p.cat||'']; st.className='st cat cat-'+(r.v?'mem':(p.cat||'mem'));
+      }catch(e){ st.textContent='!'; st.className='st err'; st.title=e.message; if(r.v) toast(e.message,2600); }
     }
     save(); lsSet('abu-photos',{photos:PH,config:CONFIG}); PH_STATE='ok';
     delete el.dataset.busy;
-    if(ok){ addBones(ok); sfx.win(); bark(2); }
-    const parts=[count['']&&`${count['']} 張放進相簿`,count['美食']&&`${count['美食']} 張美食`,count['洗澡']&&`${count['洗澡']} 張洗澡`,count['上廁所']&&`${count['上廁所']} 張上廁所`].filter(Boolean).join('、');
-    toast(ok===rows.length? `上傳完成！${parts}。送你 ${ok} 片餅乾`: `成功 ${ok} 張（${parts}），${rows.length-ok} 張失敗，標 ! 的可以再試一次`,3200);
+    if(ok){ addBones(1); sfx.win(); bark(2); }                      // 上傳一次成功就送 1 片，不管幾個
+    const fail=rows.length-ok;
+    toast(fail? `成功 ${ok} 個，${fail} 個失敗，標 ! 的可以再試一次${ok?'。送你 1 片餅乾':''}` : `上傳完成！送你 1 片餅乾`,3000);
     rows=rows.filter(r=>r.row.querySelector('.st').classList.contains('err'));
-    goBtn.textContent=rows.length?`重試 ${rows.length} 張`:'完成';
+    goBtn.textContent=rows.length?`重試 ${rows.length} 個`:'完成';
     goBtn.disabled=false;
     if(!rows.length) goBtn.onclick=()=>m.close();
   };
