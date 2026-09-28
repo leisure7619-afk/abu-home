@@ -436,6 +436,24 @@
   .seg.four{grid-template-columns:repeat(4,1fr)}
   .seg.four button{font-size:13px;padding:8px 2px}
 
+  /* ---------- 日常：三大類縮圖 ---------- */
+  .dsec{display:flex;flex-direction:column;gap:8px}
+  .dsec h3{display:flex;align-items:center;gap:6px;margin:6px 0 0;font-family:var(--font-display);font-weight:400;font-size:20px}
+  .dsec h3 svg{width:24px;height:24px}
+  .dsec.d-food h3{color:#9A6326}.dsec.d-bath h3{color:#3E86B4}.dsec.d-potty h3{color:#6C7F3A}
+  .dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .dgrid .meta{grid-column:1/-1;margin:0}
+  .dthumb{aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--lawn-deep)}
+  .dthumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .vcap{margin:0;font-size:16px;line-height:1.6;color:var(--ink);text-align:center}
+  .upname{font-size:13px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+  .adminTag{color:var(--bad);font-weight:700}
+  .linkbtn.del{color:var(--bad);font-size:13px}
+  .confirm{width:100%;background:#FBE9E5;border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
+  .confirm p{margin:0;font-size:14px;color:#8E2E1E}
+  .del-thumb{width:120px;height:120px;border-radius:14px;object-fit:cover}
+  .dthumb img,.photo img{-webkit-touch-callout:none}
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
   }
@@ -479,7 +497,7 @@
   <nav id="nav">
     <button data-tab="home"><svg><use href="#i-home"/></svg>阿布<i class="dot"></i></button>
     <button data-tab="games"><svg><use href="#i-game"/></svg>小遊戲<i class="dot"></i></button>
-    <button data-tab="food"><svg><use href="#i-bowl"/></svg>日記<i class="dot"></i></button>
+    <button data-tab="food"><svg><use href="#i-bowl"/></svg>日常<i class="dot"></i></button>
     <button data-tab="album"><svg><use href="#i-album"/></svg>相簿<i class="dot"></i></button>
   </nav>
 </div>

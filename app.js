@@ -9,7 +9,7 @@ const SAMPLE = [
   ['62','地板涼涼的，睡一下'],['66','鏡頭太近了啦'],['67','趴著等人回家'],['68','坐在椅子上當大王'],
   ['69','公園散步'],['86','桌上的雞肉好香（只是看看）'],['121','小木屋前一起乘涼'],['122','小木屋前全員到齊'],
   ['124','有我的份嗎？'],['126','草地上散步'],['142','星星毯子上的阿布'],
-].map(([n,cap],i)=>({id:'s'+n, cap, by:'', t:i+1, url:'img/sample/'+n+'.jpg', sample:true, cat:(n==='86'||n==='124')?'吃飼料':''}));
+].map(([n,cap],i)=>({id:'s'+n, cap, by:'', t:i+1, url:'img/sample/'+n+'.jpg', sample:true, cat:(n==='86'||n==='124')?'美食':''}));
 const UNLOCK_COST = 2;
 /* 阿布最愛的餅乾：牛肉、羊肉、雞肉三種口味 */
 const SHAPES = ['strawberry','bear','bone','lion','apple','rabbit','grape','monkey'].map(n=>'img/biscuit/'+n+'.png');
@@ -50,17 +50,18 @@ function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){}
 function save(){ lsSet(KEY,S); }
 
 /* ---------------- 照片清單 ---------------- */
-const normCat = p => { if(p.cat==='美食地圖'||p.cat==='吃飯') p.cat='吃飼料'; return p; };
+const normCat = p => { if(['吃飼料','美食地圖','吃飯'].includes(p.cat)) p.cat='美食'; return p; };
+const uniq = list => { const s=new Set(); return list.filter(p=>p&&p.id&&!s.has(p.id)&&s.add(p.id)); };
 let FEEDS = lsGet('abu-feeds')||[];
 let PH = [], CONFIG = { lostLink:'', lostNote:'', birthday:'', meals:'', bathDays:'' }, PH_STATE = API_URL? 'loading':'sample';
 (function(){
   if(!API_URL){ PH=SAMPLE; return; }
   const c=lsGet('abu-photos');
-  if(c&&c.photos&&c.photos.length){ PH=c.photos.map(normCat); CONFIG=c.config||CONFIG; PH_STATE='cached'; }
+  if(c&&c.photos&&c.photos.length){ PH=uniq(c.photos).map(normCat); CONFIG=c.config||CONFIG; PH_STATE='cached'; }
 })();
 const pool = () => PH.length? PH: SAMPLE;
 const isRecent = p => !p.sample && p.t && Date.now()-p.t < NEW_DAYS*864e5;
-const isOpen = p => ['吃飼料','洗澡','上廁所'].includes(p.cat) || S.unlocked.includes(p.id) || isRecent(p);
+const isOpen = p => ['美食','洗澡','上廁所'].includes(p.cat) || S.unlocked.includes(p.id) || isRecent(p);
 const openPhotos = () => { const o=pool().filter(isOpen); return o.length? o: pool().slice(0,FREE_OPEN); };
 function ensureFree(){
   const list=pool(); let n=list.filter(isOpen).length;
@@ -72,7 +73,7 @@ async function loadPhotos(fresh){
   try{
     const r=await fetch(API_URL+'?action=list'+(fresh?'&fresh=1':''));
     const j=await r.json(); if(!j.ok) throw new Error(j.error||'讀取失敗');
-    PH=(j.photos||[]).map(normCat); CONFIG=Object.assign({lostLink:'',lostNote:'',birthday:'',meals:'',bathDays:''},j.config||{}); PH_STATE='ok';
+    PH=uniq(j.photos||[]).map(normCat); CONFIG=Object.assign({lostLink:'',lostNote:'',birthday:'',meals:'',bathDays:''},j.config||{}); PH_STATE='ok';
     if(j.feeds){ FEEDS=j.feeds; lsSet('abu-feeds',FEEDS); }
     lsSet('abu-photos',{photos:PH,config:CONFIG});
   }catch(e){
@@ -211,8 +212,9 @@ const MELT_AT = 32;
 function tierOf(c){ let t=-1; LADDER.forEach((l,i)=>{ if(c>=l.at) t=i; }); return t; }
 const todayKey = () => { const d=new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
 function isBirthday(){
-  const b=(CONFIG.birthday||'').match(/(\d{1,2})\D+(\d{1,2})/); if(!b) return false;
-  const d=new Date(); return +b[1]===d.getMonth()+1 && +b[2]===d.getDate();
+  const n=(CONFIG.birthday||'').match(/\d+/g); if(!n||n.length<2) return false;
+  const [mm,dd]= n.length>=3? [n[1],n[2]] : [n[0],n[1]];
+  const d=new Date(); return +mm===d.getMonth()+1 && +dd===d.getDate();
 }
 
 /* 進到首頁時的第一句話：好久不見 > 每日餅乾 > 生日 > 時段問候 */
@@ -418,7 +420,7 @@ function gameBar(title,statId){
 }
 function winDialog({title,text,bones,faceKey='face_60',again}){
   sfx.win(); setTimeout(()=>bark(2),500); addBones(bones);
-  const m=modal(`<img class="face-img" src="${face(faceKey)}" alt=""><h3>${title}</h3><p>${text}</p><div class="gain">+${bones}<img class="ico" src="img/biscuit/bear.png" alt=""></div><div class="row"><button class="btn" id="again">再玩一次</button><button class="btn ghost" data-close>${backTo==='food'?'回日記':'回小遊戲'}</button></div>`,()=>go(backTo));
+  const m=modal(`<img class="face-img" src="${face(faceKey)}" alt=""><h3>${title}</h3><p>${text}</p><div class="gain">+${bones}<img class="ico" src="img/biscuit/bear.png" alt=""></div><div class="row"><button class="btn" id="again">再玩一次</button><button class="btn ghost" data-close>${backTo==='food'?'回日常':'回小遊戲'}</button></div>`,()=>go(backTo));
   m.el.querySelector('#again').onclick=()=>{ m.el.remove(); again(); };
 }
 
@@ -583,9 +585,9 @@ function Puzzle(){
 
 /* ================= 相簿 ================= */
 function Album(){
-  const list=[...pool()].filter(p=>!p.cat).sort((a,b)=>(p=>p.taken||p.t||0)(b)-(p=>p.taken||p.t||0)(a));
+  const list=[...pool()].filter(p=>!p.cat).sort((a,b)=>((b.taken?1:0)-(a.taken?1:0)) || ((b.taken||b.t||0)-(a.taken||a.t||0)));
   const s=h(`<section class="screen">
-    <div class="album-head"><div><h2>回憶相簿</h2><p class="sub">解鎖一張 ${UNLOCK_COST} 片餅乾，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
+    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">解鎖一張 ${UNLOCK_COST} 片餅乾，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
       <button class="btn sm" id="upBtn"><svg><use href="#i-plus"/></svg>上傳</button></div>
     <p class="progress" id="prog"></p>
     <div class="album" id="grid"></div>
@@ -596,55 +598,51 @@ function Album(){
   const open=list.filter(isOpen).length;
   $('#prog').textContent = PH_STATE==='loading'&&!PH.length? '從雲端硬碟讀照片中…'
     : `已解鎖 ${open} / ${list.length} 張${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
-  const yearOf=p=>p.sample? '' : String(new Date(p.taken||p.t||0).getFullYear());
+  const yearOf=p=>p.sample? '' : p.taken? String(new Date(p.taken).getFullYear()) : '?';
   const perYear={}; list.forEach(p=>{ const y=yearOf(p); perYear[y]=(perYear[y]||0)+1; });
   let year=null;
   list.forEach(p=>{
     const y=yearOf(p);
-    if(y && y!==year){ year=y; g.appendChild(h(`<div class="month year">${y} 年<span>${perYear[y]} 張</span></div>`)); }
+    if(y && y!==year){ year=y; g.appendChild(h(`<div class="month year">${y==='?'?'拍攝日期不明':y+' 年'}<span>${perYear[y]} 張</span></div>`)); }
     const un=isOpen(p), isNew=un&&!S.seen.includes(p.id)&&(isRecent(p)||S.unlocked.includes(p.id));
     const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock"/></svg>${UNLOCK_COST} 片餅乾</span>`}</button>`);
-    el.onclick=()=>un? view(p): unlock(p);
+    el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): unlock(p); };
+    if(API_URL&&!p.sample) longPress(el,()=>deleteDialog(p,()=>go('album',true)));
     g.appendChild(el);
   });
 }
+const ymd = t => { const d=new Date(t); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; };
 function view(p){
-  const back=current;
+  const back=current; let m;
   if(!S.seen.includes(p.id)){ S.seen.push(p.id); save(); }
   sfx.pop();
-  const meta=[!p.sample&&`📅 ${fmtDay(ptime(p))}${p.taken?' 拍':''}`, p.by&&`${esc(p.by)} 上傳`].filter(Boolean).join(' · ');
-  const m=modal(`${pimg(p,1600,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}
-    <div class="editwrap" id="capBox"><p id="capText">${p.cap?esc(p.cap):'<span class="meta">還沒有人寫這張的回憶</span>'}</p>${meta?`<span class="meta">${meta}</span>`:''}</div>
-    ${API_URL&&!p.sample?`<div class="catrow"><span class="meta">分類：<b>${CAT_LABEL[p.cat||'']}</b>${p.how&&p.how!=='預設'?`（${esc(p.how.startsWith('AI 失敗')?'AI 沒判斷成功':p.how==='AI'?'AI 判斷':p.how)}）`:''}</span><button class="linkbtn" id="recat">分錯了？</button></div>`:''}
-    <div class="row">${API_URL&&!p.sample?'<button class="btn ghost" id="editCap">寫回憶</button>':''}<button class="btn" data-close>關閉</button></div>`,()=>go(back,true));
-  const rb=m.el.querySelector('#recat');
-  if(rb) rb.onclick=()=>{
-    const row=m.el.querySelector('.catrow');
-    row.innerHTML=`<div class="seg four">${['','吃飼料','洗澡','上廁所'].map(c=>`<button data-c="${c}" aria-checked="${(p.cat||'')===c}">${CAT_LABEL[c]}</button>`).join('')}</div>`;
-    row.querySelectorAll('button').forEach(b=>b.onclick=async()=>{
-      const c=b.dataset.c; if(c===(p.cat||'')) return;
-      row.querySelectorAll('button').forEach(x=>x.disabled=true); b.textContent='搬移中…';
-      try{ await api({action:'recat',id:p.id,cat:c||'回憶',by:S.me}); p.cat=c; p.how='手動'; lsSet('abu-photos',{photos:PH,config:CONFIG}); toast(`已改到「${CAT_LABEL[c]}」`); m.close(); }
-      catch(e){ toast('改分類失敗：'+e.message); m.close(); }
-    });
+  const cap = p.cap? esc(p.cap) : (API_URL&&!p.sample&&CONFIG.ai? '<span class="meta">AI 正在寫這張的回憶，晚點再來看</span>' : '');
+  const date = p.sample? '' : p.taken? `拍攝於 ${ymd(p.taken)}` : '拍攝日期不明';
+  m=modal(`${pimg(p,1600,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}
+    ${cap?`<p class="vcap">${cap}</p>`:''}${date?`<span class="meta">${date}</span>`:''}
+    <button class="btn" data-close>關閉</button>
+    ${API_URL&&!p.sample?'<button class="linkbtn del" id="delPhoto">刪除這張照片</button>':''}`,()=>go(back,true));
+  const del=m.el.querySelector('#delPhoto');
+  if(del) del.onclick=()=>{ m.el.remove(); deleteDialog(p,()=>go(back,true)); };
+}
+function deleteDialog(p,done){
+  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>刪除這張照片？</h3><p>照片會移到雲端硬碟垃圾桶，30 天內可以救回。</p>
+    <div class="row"><button class="btn danger" id="delYes">刪除</button><button class="btn ghost" data-close>取消</button></div>`,done);
+  const y=m.el.querySelector('#delYes');
+  y.onclick=async()=>{
+    y.disabled=true; y.textContent='刪除中…'; m.el.dataset.busy='1';
+    try{ await api({action:'delete',id:p.id}); PH=PH.filter(x=>x.id!==p.id); lsSet('abu-photos',{photos:PH,config:CONFIG}); ensureFree(); toast('已刪除'); }
+    catch(err){ toast('刪除失敗：'+err.message); }
+    delete m.el.dataset.busy; m.close();
   };
-  const eb=m.el.querySelector('#editCap');
-  if(eb) eb.onclick=()=>{
-    const box=m.el.querySelector('#capBox');
-    box.innerHTML=`<label class="field">這張照片的回憶<textarea id="capInput" maxlength="300" placeholder="例：第一次去河濱公園，看到鴿子一直追">${esc(p.cap)}</textarea></label>
-      ${whoField('capBy','例：媽媽')}`;
-    bindWho(box);
-    eb.textContent='儲存';
-    eb.className='btn';
-    const cb=m.el.querySelector('[data-close]'); if(cb){ cb.className='btn ghost'; cb.textContent='取消'; }
-    eb.onclick=async()=>{
-      const cap=m.el.querySelector('#capInput').value.trim(), by=m.el.querySelector('#capBy').value.trim();
-      if(by){ S.me=by; save(); }
-      eb.disabled=true; eb.textContent='儲存中…';
-      try{ await api({action:'caption',id:p.id,caption:cap,by}); p.cap=cap; if(!p.by&&by) p.by=by; lsSet('abu-photos',{photos:PH,config:CONFIG}); toast('已儲存'); m.close(); }
-      catch(e){ eb.disabled=false; eb.textContent='儲存'; toast('儲存失敗：'+e.message); }
-    };
-  };
+}
+function longPress(el,fn){
+  if(!el) return; let t=null;
+  const start=()=>{ clearTimeout(t); t=setTimeout(()=>{ el._lp=true; if(navigator.vibrate) try{navigator.vibrate(30)}catch(e){} fn(); },700); };
+  const stop=()=>clearTimeout(t);
+  el.addEventListener('pointerdown',start); ['pointerup','pointerleave','pointercancel'].forEach(ev=>el.addEventListener(ev,stop));
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+  el.style.userSelect='none'; el.style.webkitUserSelect='none';
 }
 function unlock(p){
   if(S.bones<UNLOCK_COST){ sfx.bad(); toast(`還差 ${UNLOCK_COST-S.bones} 片餅乾，去玩小遊戲吧`); return; }
@@ -666,7 +664,7 @@ function compress(file,max=1600,q=.85){
     im.src=u;
   });
 }
-/* EXIF 拍攝時間：讀檔案前 128KB 找 "YYYY:MM:DD HH:MM:SS"，找不到就用檔案時間 */
+/* EXIF 拍攝時間：讀檔案前 128KB 找 "YYYY:MM:DD HH:MM:SS" */
 async function takenTime(file){
   try{
     const buf=await file.slice(0,131072).arrayBuffer();
@@ -674,14 +672,14 @@ async function takenTime(file){
     const m=s.match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
     if(m){ const d=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]); if(!isNaN(d)&&d.getFullYear()>2005&&d.getTime()<=Date.now()+864e5) return d.getTime(); }
   }catch(e){}
-  return file.lastModified||0;
+  return 0;   // 照片裡沒有拍攝時間（例如 LINE 轉存的）就不猜，當作日期不明
 }
-const CAT_LABEL = {'':'回憶相簿','吃飼料':'吃飼料','洗澡':'洗澡','上廁所':'上廁所'};
+const CAT_LABEL = {'':'相簿','美食':'美食','洗澡':'洗澡','上廁所':'上廁所'};
 function uploadDialog(){
   if(!API_URL){ toast('還沒接上雲端硬碟：請先在 config.js 填入 API 網址'); return; }
   const back=current;
   const m=modal(`<h3>上傳阿布的照片</h3>
-    <p class="meta">不用選分類：吃飼料、洗澡、上廁所的照片會自動排進阿布日記，其他的放相簿。圖說寫「洗澡」「吃飼料」「便便」也會幫忙判斷。</p>
+    <p class="meta">選照片就好，不用分類也不用寫字：AI 會看照片，美食、洗澡、上廁所的放進「日常」，其他的放相簿，還會幫每張寫一句回憶。</p>
     ${whoField('upBy','例：媽媽、小明')}
     <label class="picker drop"><svg><use href="#i-album"/></svg><b>選照片</b><span>可以一次選很多張</span><input type="file" id="upFiles" accept="image/*" multiple></label>
     <div class="uplist" id="uplist"></div>
@@ -695,7 +693,7 @@ function uploadDialog(){
     rows.forEach(r=>URL.revokeObjectURL(r.prev));
     listEl.innerHTML=''; rows=files.map(f=>{
       const prev=URL.createObjectURL(f);
-      const row=h(`<div class="uprow"><img src="${prev}" alt=""><input maxlength="300" placeholder="寫一句回憶（可以不寫）"><span class="st"></span></div>`);
+      const row=h(`<div class="uprow"><img src="${prev}" alt=""><span class="upname">${esc(f.name||'照片')}</span><span class="st"></span></div>`);
       listEl.appendChild(row); return {f,prev,row};
     });
     goBtn.disabled=!rows.length; goBtn.textContent=`上傳 ${rows.length} 張`;
@@ -704,13 +702,13 @@ function uploadDialog(){
   goBtn.onclick=async()=>{
     const by=el.querySelector('#upBy').value.trim(); if(by){ S.me=by; save(); }
     goBtn.disabled=true; el.dataset.busy='1';
-    let ok=0; const count={'':0,'吃飼料':0,'洗澡':0,'上廁所':0};
+    let ok=0; const count={'':0,'美食':0,'洗澡':0,'上廁所':0};
     for(let i=0;i<rows.length;i++){
       const r=rows[i], st=r.row.querySelector('.st');
       goBtn.textContent=`上傳中 ${i+1} / ${rows.length}`; st.textContent='…'; st.className='st';
       try{
         const [data,taken]=await Promise.all([compress(r.f),takenTime(r.f)]);
-        const j=await api({action:'upload',data,taken,mime:'image/jpeg',name:(r.f.name||'abu.jpg').replace(/\.\w+$/,'')+'.jpg',caption:r.row.querySelector('input').value.trim(),by});
+        const j=await api({action:'upload',data,taken,mime:'image/jpeg',name:(r.f.name||'abu.jpg').replace(/\.\w+$/,'')+'.jpg',by});
         const p=j.photo; PH.push(p); S.unlocked.push(p.id); ok++; count[p.cat||'']=(count[p.cat||'']||0)+1;
         st.textContent=CAT_LABEL[p.cat||'']; st.className='st cat cat-'+(p.cat||'mem');
       }catch(e){ st.textContent='!'; st.className='st err'; st.title=e.message; }
@@ -718,7 +716,7 @@ function uploadDialog(){
     save(); lsSet('abu-photos',{photos:PH,config:CONFIG}); PH_STATE='ok';
     delete el.dataset.busy;
     if(ok){ addBones(ok); sfx.win(); bark(2); }
-    const parts=[count['']&&`${count['']} 張放進相簿`,count['吃飼料']&&`${count['吃飼料']} 張吃飼料`,count['洗澡']&&`${count['洗澡']} 張洗澡（已更新上次洗澡時間）`,count['上廁所']&&`${count['上廁所']} 張上廁所`].filter(Boolean).join('、');
+    const parts=[count['']&&`${count['']} 張放進相簿`,count['美食']&&`${count['美食']} 張美食`,count['洗澡']&&`${count['洗澡']} 張洗澡`,count['上廁所']&&`${count['上廁所']} 張上廁所`].filter(Boolean).join('、');
     toast(ok===rows.length? `上傳完成！${parts}。送你 ${ok} 片餅乾`: `成功 ${ok} 張（${parts}），${rows.length-ok} 張失敗，標 ! 的可以再試一次`,3200);
     rows=rows.filter(r=>r.row.querySelector('.st').classList.contains('err'));
     goBtn.textContent=rows.length?`重試 ${rows.length} 張`:'完成';
@@ -728,7 +726,7 @@ function uploadDialog(){
 }
 
 /* ================= 阿布每天吃什麼 ================= */
-const CAT_FOOD = '吃飼料';
+const CAT_FOOD = '美食';
 const isFood = p => p.cat===CAT_FOOD;
 const WEEK = ['日','一','二','三','四','五','六'];
 const sameDay = (a,b) => { const x=new Date(a), y=new Date(b); return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate(); };
@@ -745,138 +743,22 @@ async function removeFeed(f){
   S.localFeeds=(S.localFeeds||[]).filter(x=>x.t!==f.t); save();
 }
 
-/* ================= 阿布日記（縮圖日記）：吃飼料、洗澡、上廁所 ================= */
+/* ================= 日常：美食、洗澡、上廁所，三大類縮圖 ================= */
 const CAT_POTTY='上廁所';
 const DIARY_CATS=[
-  {cat:'吃飼料', icon:'i-bowl',  cls:'food'},
-  {cat:'洗澡',   icon:'i-tub',   cls:'bath'},
-  {cat:'上廁所', icon:'i-potty', cls:'potty'},
+  {cat:'美食',   icon:'i-bowl',  cls:'d-food'},
+  {cat:'洗澡',   icon:'i-tub',   cls:'d-bath'},
+  {cat:'上廁所', icon:'i-potty', cls:'d-potty'},
 ];
-const POTTY_ITEMS=['大號','小號'];
-const catOfLog = f => f.meal==='洗澡'? '洗澡' : POTTY_ITEMS.includes(f.meal)? '上廁所' : '吃飼料';
-const dayKey = t => { const d=new Date(t); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
-function dayLabel(t){
-  const today=dayStart(Date.now()), d=dayStart(t), diff=Math.round((today-d)/864e5);
-  return {main:fmtDay(t), sub: diff===0?'今天':diff===1?'昨天':diff<7?`${diff} 天前`:''};
-}
-function pottyInfo(){
-  const now=Date.now(), logs=feedsAll().filter(f=>POTTY_ITEMS.includes(f.meal));
-  const today=logs.filter(f=>sameDay(f.t,now));
-  const diarrhea=logs.filter(f=>f.meal==='大號'&&/拉肚子/.test(f.note||'')&&now-f.t<24*3600e3).length;
-  const lastBig=logs.filter(f=>f.meal==='大號').sort((a,b)=>b.t-a.t)[0];
-  return {big:today.filter(f=>f.meal==='大號').length, small:today.filter(f=>f.meal==='小號').length, diarrhea, lastBig};
-}
-const agoText = t => { const m=Math.round((Date.now()-t)/60000); return m<60? `${Math.max(1,m)} 分鐘前` : m<24*60? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
-
-let diaryDays=14;
 function Food(){
-  const now=new Date(), today=todayFeeds(), meals=mealList(), hr=now.getHours();
-  const B=bathInfo(), P=pottyInfo();
-  const mealDone=m=>today.some(f=>f.meal===m);
-  const lateMeal=meals.find(m=>!mealDone(m)&&((m.includes('早')&&hr>=10)||(m.includes('晚')&&hr>=20)));
-  const foodStat=meals.map(m=>`${esc(m)}${mealDone(m)?'<b class="ok">✓</b>':'<b class="no">—</b>'}`).join('　');
-  const s=h(`<section class="screen">
-    <div><h2>阿布日記</h2><p class="sub">吃飼料、洗澡、上廁所，家人記一筆、在相簿上傳照片，都會自動排進每天的日記。</p></div>
-    <div class="today">
-      <div class="today-head"><b>今天 ${now.getMonth()+1}/${now.getDate()}（${WEEK[now.getDay()]}）</b>${API_URL?'':'<span class="meta">只存在這支手機</span>'}</div>
-      <div class="tri">
-        <button class="tbtn food${lateMeal?' late':''}" data-a="food"><svg><use href="#i-bowl"/></svg><span class="tname">吃飼料</span><span class="tstat">${foodStat}</span></button>
-        <button class="tbtn bath ${B.state}" data-a="bath"><svg><use href="#i-tub"/></svg><span class="tname">洗澡</span><span class="tstat">${B.last? (B.days===0?'今天洗過':B.days===1?'昨天':`${B.days} 天前`) : '還沒紀錄'}</span></button>
-        <button class="tbtn potty${P.diarrhea>=2?' due':''}" data-a="potty"><svg><use href="#i-potty"/></svg><span class="tname">上廁所</span><span class="tstat">大 ${P.big}・小 ${P.small}</span></button>
-      </div>
-      <div class="alerts" id="alerts"></div>
-    </div>
-    <div class="duo">
-      <button class="mini" data-g="bowl"><img src="${face('face_66')}" alt=""><b>幫阿布裝飯</b><span>倒飼料，剛剛好最棒</span></button>
-      <button class="mini" data-g="quiz"><img src="${face('face_143')}" alt=""><b>阿布能不能吃？</b><span>考考你狗狗飲食常識</span></button>
-    </div>
-    <div class="diary" id="diary"></div>
-  </section>`);
-  main.appendChild(s);
-  /* 提醒：只在真的需要時出現 */
-  const al=[];
-  if(lateMeal) al.push(['warn',`${lateMeal}還沒有人記錄，餵了嗎？`]);
-  if(P.diarrhea>=2) al.push(['bad',`24 小時內拉肚子 ${P.diarrhea} 次了。先注意喝水、觀察精神，持續或有血便請帶去看獸醫。`]);
-  if(B.state==='due') al.push(['warn',`已經 ${B.days} 天沒洗澡了，阿布說他有點狗味了。`]);
-  if(P.lastBig && !P.big && Date.now()-P.lastBig.t>36*3600e3) al.push(['warn',`上次大號是 ${agoText(P.lastBig.t)}，留意一下有沒有便秘。`]);
-  $('#alerts').innerHTML=al.map(([c,t])=>`<p class="alert ${c}">${t}</p>`).join('');
-  s.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{ sfx.pop(); ({food:foodDialog,bath:()=>bathDialog(B),potty:pottyDialog})[b.dataset.a](); });
-  s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='food'; go(b.dataset.g); });
-  drawDiary();
-}
-
-/* 每天一格：三大類各一行，左邊是紀錄小標籤，右邊是照片縮圖 */
-function drawDiary(){
-  const box=$('#diary'); if(!box) return;
-  const days={};
-  const add=(t,cat,kind,item)=>{ const k=dayKey(t); (days[k]=days[k]||{t:dayStart(t),c:{}}); (days[k].c[cat]=days[k].c[cat]||{logs:[],photos:[]})[kind].push(item); };
-  feedsAll().forEach(f=>add(f.t,catOfLog(f),'logs',f));
-  pool().filter(p=>DIARY_CATS.some(c=>c.cat===p.cat)).forEach(p=>add(ptime(p),p.cat,'photos',p));
-  const list=Object.values(days).sort((a,b)=>b.t-a.t);
-  if(!list.length){ box.innerHTML=`<p class="how">日記還是空的。按上面三個按鈕記一筆，或在「相簿」上傳吃飯、洗澡、上廁所的照片，就會出現在這裡。</p>`; return; }
-  const shown=list.slice(0,diaryDays);
-  let html='', month='';
-  shown.forEach(d=>{
-    const dt=new Date(d.t), mk=`${dt.getFullYear()} 年 ${dt.getMonth()+1} 月`;
-    if(mk!==month){ month=mk; html+=`<div class="month">${mk}</div>`; }
-    const L=dayLabel(d.t);
-    html+=`<article class="day"><header><b>${L.main}</b>${L.sub?`<small>${L.sub}</small>`:''}</header>`;
-    DIARY_CATS.forEach(c=>{
-      const e=d.c[c.cat]; if(!e) return;
-      const logs=e.logs.sort((a,b)=>a.t-b.t).map(f=>{
-        const bad=/拉肚子/.test(f.note||'');
-        const label= c.cat==='洗澡'? '洗澡' : f.meal;
-        return `<span class="chip${bad?' bad':''}" title="${esc(f.note||'')}">${esc(label)} ${hhmm(f.t)}${f.by?`<i>${esc(f.by)}</i>`:''}${c.cat==='上廁所'&&f.note?`<i>${esc(f.note)}</i>`:''}</span>`;
-      }).join('');
-      const ph=e.photos.sort((a,b)=>ptime(a)-ptime(b)).map(p=>`<button class="thumb" data-id="${esc(p.id)}" aria-label="${esc(p.cap||c.cat+'的照片')}">${pimg(p,200,'alt="" loading="lazy"')}</button>`).join('');
-      html+=`<div class="drow ${c.cls}"><span class="dcat"><svg><use href="#${c.icon}"/></svg>${c.cat}</span><div class="dcells">${logs}${ph}</div></div>`;
-    });
-    html+=`</article>`;
+  const s=h(`<section class="screen"><h2>日常</h2></section>`);
+  DIARY_CATS.forEach(c=>{
+    const photos=pool().filter(p=>p.cat===c.cat).sort((a,b)=>ptime(b)-ptime(a));
+    s.appendChild(h(`<section class="dsec ${c.cls}"><h3><svg><use href="#${c.icon}"/></svg>${c.cat}</h3>
+      <div class="dgrid">${photos.length? photos.map(p=>`<div class="dthumb" data-id="${esc(p.id)}">${pimg(p,300,`alt="${esc(p.cap||c.cat)}" loading="lazy"`)}</div>`).join('') : '<p class="meta">還沒有照片</p>'}</div></section>`));
   });
-  if(list.length>diaryDays) html+=`<button class="btn ghost more" id="more">看更早的日記（還有 ${list.length-diaryDays} 天）</button>`;
-  box.innerHTML=html;
-  box.querySelectorAll('.thumb').forEach(b=>b.onclick=()=>{ const p=pool().find(x=>x.id===b.dataset.id); if(p) view(p); });
-  const more=$('#more'); if(more) more.onclick=()=>{ diaryDays+=14; drawDiary(); };
-}
-
-function foodDialog(){
-  const meals=mealList(), today=todayFeeds();
-  const cell=m=>{ const last=today.filter(f=>f.meal===m).pop();
-    return `<button class="meal${last?' done':''}" data-meal="${esc(m)}"><span class="mname">${esc(m)}</span><span class="mstat">${last?`✓ ${last.by?esc(last.by)+' ':''}${hhmm(last.t)}`:'還沒吃'}</span></button>`; };
-  const snacks=today.filter(f=>!meals.includes(f.meal)&&catOfLog(f)==='吃飼料');
-  const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布吃了哪一餐？</h3>
-    <div class="meals" style="width:100%">${meals.map(cell).join('')}<button class="meal snack" data-meal="點心"><span class="mname">點心</span><span class="mstat">${snacks.length?`今天 ${snacks.length} 次`:'隨時記'}</span></button></div>
-    <button class="btn ghost" data-close>取消</button>`);
-  m.el.querySelectorAll('.meal').forEach(b=>b.onclick=()=>{ m.el.remove(); mealDialog(b.dataset.meal, meals.includes(b.dataset.meal)); });
-}
-
-function pottyDialog(){
-  let type='大號', state='正常';
-  const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布上廁所了？</h3>
-    <div class="seg" id="pType">${POTTY_ITEMS.map(v=>`<button data-v="${v}" aria-checked="${v===type}">${v}</button>`).join('')}</div>
-    <div class="field" id="pStateBox">便便狀況<div class="pills" id="pState">${['正常','偏軟','拉肚子','偏硬'].map(v=>`<button data-v="${v}" aria-checked="${v===state}">${v}</button>`).join('')}</div></div>
-    ${whoField('pBy','例：媽媽')}
-    <div class="row"><button class="btn" id="pGo">記下來</button><button class="btn ghost" data-close>取消</button></div>`,()=>go('food',true));
-  const el=m.el; bindWho(el);
-  const sync=()=>{ el.querySelectorAll('#pType button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===type))); el.querySelectorAll('#pState button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===state))); el.querySelector('#pStateBox').hidden= type!=='大號'; };
-  el.querySelectorAll('#pType button').forEach(b=>b.onclick=()=>{ type=b.dataset.v; sync(); });
-  el.querySelectorAll('#pState button').forEach(b=>b.onclick=()=>{ state=b.dataset.v; sync(); });
-  sync();
-  const goBtn=el.querySelector('#pGo');
-  goBtn.onclick=async()=>{
-    const by=el.querySelector('#pBy').value.trim(); if(by){ S.me=by; save(); }
-    goBtn.disabled=true; goBtn.textContent='記錄中…'; el.dataset.busy='1';
-    try{
-      await logFeed(type,by,type==='大號'?state:'');
-      delete el.dataset.busy;
-      const P=pottyInfo(), bad=type==='大號'&&state==='拉肚子';
-      const msg= bad? (P.diarrhea>=2? `24 小時內拉肚子 ${P.diarrhea} 次了，注意喝水、觀察精神，持續或有血便請帶去看獸醫。` : '肚子有點不舒服…先記下來，家人會一起留意。')
-               : type==='大號'? (state==='正常'?'順順的，好健康！':'記下來了，家人會一起留意。') : '記下來了！';
-      el.querySelector('.dialog').innerHTML=`<img class="face-img" src="${face(bad?'face_143':'face_60')}" alt=""><h3>${bad?'記下來了':'謝謝'+(by?esc(by):'你')+'！'}</h3><p>${msg}</p><button class="btn" id="ok">好</button>`;
-      el.querySelector('#ok').onclick=m.close;
-      if(!bad) tone(700,.08,'triangle',.1,200);
-    }catch(e){ delete el.dataset.busy; goBtn.disabled=false; goBtn.textContent='記下來'; toast('記錄失敗：'+e.message); }
-  };
+  main.appendChild(s);
+  if(API_URL) s.querySelectorAll('.dthumb').forEach(d=>{ const p=pool().find(x=>x.id===d.dataset.id); if(p&&!p.sample) longPress(d,()=>deleteDialog(p,()=>go('food',true))); });
 }
 
 /* ---------- 洗澡 ---------- */
