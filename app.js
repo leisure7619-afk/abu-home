@@ -1112,12 +1112,12 @@ function Car(){
   s.appendChild(h(`<div class="legend"><span><b>加時間</b> 💨 +1秒　🐕 +2秒　🍗 +3秒</span><span class="no"><b class="no">閃開</b> 🚗 🛵 🚲 撞到 −3秒</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d');
-  const F={}; ['face_66','face_60','face_143','face_68','face_62','face_65'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
+  const F={}; ['face_car1','face_car2','face_car3','face_143','face_62','face_66'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
   const GOOD=[['💨',1,['風好舒服～','耳朵要飛起來了','呼～～']],['🐕',2,['那隻狗在看我！','嗨～狗朋友']],['🍗',3,['什麼東西好香！','停車！我要吃那個']]];
   const CARS=['#E0715A','#F4F1EA','#8DBF7A','#F2C230','#B8A6D9'];
   const START=25, CRASH=3, TUG=6, BONUS=10;
   let W=0,H=0,dpr=1, lane=1, carY=0, items=[], left=START, ride=0, t=0, last=0, raf=0, phase='intro', speed=0, spawnT=0, dist=0, hurt=0, pops=[];
-  let pulled=false, faceK='face_65', faceT=0, say='', sayT=0, shake=0, tug=.4, tugT=0, won=false, houseX=0;
+  let pulled=false, faceK='face_car1', faceT=0, say='', sayT=0, shake=0, tug=.4, tugT=0, won=false, houseX=0;
   function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); if(!carY) carY=laneY(lane); }
   const roadTop=()=>H*.42, laneH=()=>(H-18-roadTop())/3, laneY=i=>roadTop()+laneH()*(i+.5);
   size(); const ro=new ResizeObserver(size); ro.observe(wrap);
@@ -1276,13 +1276,13 @@ function Car(){
       const reach=it.car? half+vw(it)*.4 : half;
       if(phase==='drive'&&it.lane===lane&&Math.abs(it.x-cx)<reach){
         if(it.car){ if(hurt>0) continue; items.splice(i,1); left=Math.max(0,left-CRASH); hurt=.9; shake=.4; sfx.bad(); pop(`−${CRASH} 秒`,'#C8452F'); talk(it.k==='bike'? pick(['腳踏車！小心！','差點撞到人']) : it.k==='moto'? pick(['機車好吵！','嚇死我了！']) : pick(['叭叭！','好險…']),'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(70)}catch(e){} }
-        else { items.splice(i,1); left+=it.val; sfx.good(); pop(`+${it.val} 秒`,'#3E6B25'); talk(it.line,it.val>=3?'face_68':'face_60',1); }
+        else { items.splice(i,1); left+=it.val; sfx.good(); pop(`+${it.val} 秒`,'#3E6B25'); talk(it.line,it.val>=3?'face_car2':'face_car3',1); }
         ctx.font='30px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
       }else if(it.x<-120) items.splice(i,1);
     }
     const c=drawCar(dt);
     if(hurt>0&&Math.floor(hurt*10)%2===0){ ctx.fillStyle='rgba(200,69,47,.12)'; ctx.fillRect(0,0,W,H); }
-    if(faceT>0){ faceT-=dt; if(faceT<=0&&phase==='drive') faceK= speed>240? 'face_66':'face_65'; }
+    if(faceT>0){ faceT-=dt; if(faceT<=0&&phase==='drive') faceK= speed>240? 'face_car2':'face_car1'; }
     if(sayT>0){ sayT-=dt; bubble(say,c.hx+c.r*.4,c.hy-c.r); }
     pops=pops.filter(p=>{ p.y+=40*dt; p.v-=dt*.8; ctx.globalAlpha=Math.max(0,p.v); ctx.font='bold 20px "Huninn",sans-serif'; ctx.fillStyle=p.col; ctx.textAlign='center'; ctx.fillText(p.txt,Math.min(W-40,c.x+c.cw*.5+44),c.y-10-p.y); ctx.globalAlpha=1; return p.v>0; });
     if(phase==='drive'){                                              // 剩下的時間
@@ -1317,47 +1317,13 @@ function Car(){
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
-    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點上、下換車道，閃開來車。<br>到了連打，把阿布拉下車！</p><button class="btn" id="go">出發！</button>`);
-    m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_66',1.2); raf=requestAnimationFrame(frame); };
+    const m=modal(`<img class="face-img" src="${face('face_car1')}" alt=""><h3>阿布最愛坐車了</h3><p>點上、下換車道，閃開來車。<br>到了連打，把阿布拉下車！</p><button class="btn" id="go">出發！</button>`);
+    m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_car1',1.2); raf=requestAnimationFrame(frame); };
   }
   setTimeout(intro,50);
   cleanup=()=>{ phase='over'; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown',onKey); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
-/* 卡通柴犬身體（從後面看，參考柔和插畫風）：淺赤柴色、奶油色的裏白和腳、細咖啡色線條、黃黑條紋項圈，
- * 尾巴從屁股往上捲成一圈螺旋，以尾巴根為軸左右搖。 */
-function shibaBody(c,ax,y,r,step,wagHz,wagAmp){
-  const LINE='#5A4A42', ORG='#F0A94B', ORG2='#E3923A', CREAM='#FFF4E0';
-  const tt=performance.now()/1000, leg=Math.sin(step)*r*.12, lw=Math.max(2,r*.06);
-  c.save(); c.lineJoin='round'; c.lineCap='round'; c.strokeStyle=LINE; c.lineWidth=lw;
-  c.fillStyle='rgba(43,39,35,.14)'; c.beginPath(); c.ellipse(ax,y+r*2.62,r*1.0,r*.24,0,0,7); c.fill();
-  c.fillStyle=ORG; c.beginPath();                                            // 身體：肩膀窄、屁股圓
-  c.moveTo(ax-r*.42,y+r*.82); c.bezierCurveTo(ax-r*.95,y+r*1.25,ax-r*1.02,y+r*2.3,ax-r*.72,y+r*2.5);
-  c.lineTo(ax+r*.72,y+r*2.5); c.bezierCurveTo(ax+r*1.02,y+r*2.3,ax+r*.95,y+r*1.25,ax+r*.42,y+r*.82); c.closePath(); c.fill(); c.stroke();
-  c.fillStyle=CREAM; c.beginPath();                                          // 屁屁和後腿內側的奶油色（倒 U 形）
-  c.moveTo(ax-r*.62,y+r*2.5); c.bezierCurveTo(ax-r*.6,y+r*1.95,ax-r*.25,y+r*1.72,ax,y+r*1.72); c.bezierCurveTo(ax+r*.25,y+r*1.72,ax+r*.6,y+r*1.95,ax+r*.62,y+r*2.5); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(ax,y+r*2.05); c.lineTo(ax,y+r*2.5); c.stroke();                                              // 兩條後腿中間的線
-  [[-1,leg],[1,-leg]].forEach(([sd,o])=>{                                   // 後腳掌，一前一後踏
-    c.fillStyle=CREAM; c.beginPath(); c.ellipse(ax+sd*r*.42,y+r*2.55+o,r*.28,r*.13,0,0,7); c.fill(); c.stroke();
-  });
-  const wag=Math.sin(tt*wagHz)*wagAmp;                                       // 捲捲尾巴：像肉桂捲一樣捲成一圈，中間露出奶油色
-  c.save(); c.translate(ax,y+r*2.02); c.rotate(wag);
-  const R0=r*.4, cy=-r*.42;
-  c.fillStyle='rgba(90,74,66,.18)'; c.beginPath(); c.ellipse(r*.05,cy+r*.12,R0,R0*.9,0,0,7); c.fill();                   // 尾巴影子
-  c.fillStyle=ORG; c.strokeStyle=LINE; c.lineWidth=lw;
-  c.beginPath(); c.moveTo(-r*.14,0); c.quadraticCurveTo(-r*.16,cy+R0*.6,-R0*.6,cy+R0*.55); c.lineTo(R0*.2,cy+R0*.9); c.quadraticCurveTo(r*.14,-r*.05,r*.14,0); c.fill(); c.stroke();   // 尾巴根
-  c.beginPath(); c.arc(0,cy,R0,0,7); c.fill(); c.stroke();                                                                // 外圈
-  c.fillStyle=CREAM; c.beginPath(); c.arc(R0*.12,cy-R0*.08,R0*.48,0,7); c.fill(); c.stroke();                             // 中間的奶油色
-  c.fillStyle=ORG; c.beginPath(); c.arc(R0*.22,cy-R0*.14,R0*.24,0,7); c.fill(); c.stroke();                               // 最裡面再捲一圈
-  c.strokeStyle=LINE; c.beginPath(); c.arc(0,cy,R0*.78,Math.PI*.9,Math.PI*1.55); c.stroke();                            // 毛流線
-  c.restore();
-  c.strokeStyle=ORG2; c.lineWidth=lw; c.beginPath(); c.moveTo(ax-r*.7,y+r*1.6); c.quadraticCurveTo(ax-r*.78,y+r*1.9,ax-r*.66,y+r*2.1); c.moveTo(ax+r*.7,y+r*1.6); c.quadraticCurveTo(ax+r*.78,y+r*1.9,ax+r*.66,y+r*2.1); c.stroke();   // 大腿的毛流線
-  const ny=y+r*1.1;                                                          // 黃黑條紋項圈（阿布的招牌）
-  c.save(); c.beginPath(); c.roundRect? c.roundRect(ax-r*.5,ny-r*.1,r*1.0,r*.2,r*.1): c.rect(ax-r*.5,ny-r*.1,r*1.0,r*.2); c.clip();
-  for(let k=-6;k<7;k++){ c.fillStyle=k%2? '#F2C230':'#2B2723'; c.beginPath(); c.moveTo(ax+k*r*.14,ny-r*.12); c.lineTo(ax+k*r*.14+r*.14,ny-r*.12); c.lineTo(ax+k*r*.14+r*.06,ny+r*.12); c.lineTo(ax+k*r*.14-r*.08,ny+r*.12); c.fill(); }
-  c.restore(); c.strokeStyle=LINE; c.lineWidth=lw; c.beginPath(); c.roundRect? c.roundRect(ax-r*.5,ny-r*.1,r*1.0,r*.2,r*.1): c.rect(ax-r*.5,ny-r*.1,r*1.0,r*.2); c.stroke();
-  c.restore();
-}
 /* ================= 小遊戲：陪阿布散步（阿布怕人多、怕鞭炮） =================
  * 左右拖著阿布走。靠近人群、被鞭炮嚇到，阿布「想回家」就越高；越想回家就拉著你走越快、越難閃。
  * 撿草地和餅乾讓他放鬆。想回家滿了，阿布就拖著你衝回家——比誰散步走得最遠，每 20 公尺換 1 片餅乾。 */
@@ -1452,17 +1418,27 @@ function Walk(){
     ctx.restore();
     if(o.fuse<1.2){ ctx.strokeStyle='rgba(216,67,50,.35)'; ctx.setLineDash([5,5]); ctx.lineWidth=2; ctx.beginPath(); ctx.arc(o.x,o.y,85,0,7); ctx.stroke(); ctx.setLineDash([]); }
   }
+  /* 阿布的背影：從真實照片去背，捲尾巴會搖（預先做好 9 格搖尾巴的圖） */
+  const WALK=new Image(); WALK.src='img/abu_walk.webp';
+  const FW=107, FH=240, NF=9, COLLAR=[76,69], HEADTOP=[90,18];
   function drawAbu(){
-    const r=ar(), run=speed/60, jig=freezeT>0? (Math.random()-.5)*4 : Math.sin(walked/(9-Math.min(5,run)))*2, ax=x+jig, y=ay()+(bump>0? -Math.sin(bump*Math.PI)*14:0);
-    const taut=want>.6;                                          // 越想回家，牽繩拉得越緊
-    ctx.strokeStyle='#C8452F'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(ax,y+r*.9); taut? ctx.lineTo(W/2,H+10) : ctx.quadraticCurveTo((ax+W/2)/2,H-20,W/2,H+10); ctx.stroke();
-    shibaBody(ctx,ax,y,r,t*(6+run*3),freezeT>0? 1.5 : want>.6? 16 : 9, freezeT>0? .12 : want>.6? .5 : .35);
-    ctx.strokeStyle=INK; ctx.lineWidth=2.5;
-    ctx.save(); ctx.beginPath(); ctx.arc(ax,y,r+4,0,7); ctx.fillStyle= want>.7? '#EE8597':'#F2C230'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(ax,y,r,0,7); ctx.clip();
-    const im=F[faceK]; if(im&&im.complete) ctx.drawImage(im,ax-r,y-r,r*2,r*2); ctx.restore();
-    if(want>.6){ ctx.fillStyle='#7FB3D5'; ctx.beginPath(); ctx.ellipse(ax+r+6,y-r*.4+Math.sin(t*6)*2,3,5,0,0,7); ctx.fill(); }
-    if(run>2.4){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2.5; for(let k=0;k<3;k++){ const lx=ax-r*.8+k*r*.8; ctx.beginPath(); ctx.moveTo(lx,y+r*2.3); ctx.lineTo(lx,y+r*2.3+10+run*3); ctx.stroke(); } }   // 跑很快的風線
-    return {ax,y,r};
+    const hgt=Math.max(110,Math.min(150,H*.25)), sc=hgt/FH, fw=FW*sc, run=speed/60;
+    const wagHz= freezeT>0? 2 : want>.6? 16 : 9, wagAmp= freezeT>0? .25 : want>.6? 1 : .8;
+    const fr=Math.max(0,Math.min(NF-1,Math.round((Math.sin(t*wagHz)*wagAmp+1)/2*(NF-1))));
+    const step=walked/(10-Math.min(5,run)), bob=freezeT>0? 0 : Math.abs(Math.sin(step))*3.5;
+    const sway=freezeT>0? (Math.random()-.5)*.05 : Math.sin(step)*.035;
+    const ax=x, fy=ay()+hgt*.42-(bump>0? Math.sin(bump*Math.PI)*14:0);          // 腳的位置
+    const cxp=ax-fw/2+COLLAR[0]*sc, cyp=fy-hgt+COLLAR[1]*sc-bob;
+    const taut=want>.6;                                          // 牽繩：紅黑編織繩，越想回家拉得越直
+    ctx.strokeStyle='#B8322A'; ctx.lineWidth=3; ctx.setLineDash([5,3]); ctx.beginPath(); ctx.moveTo(cxp,cyp); taut? ctx.lineTo(W/2,H+10) : ctx.quadraticCurveTo((cxp+W/2)/2,H-10,W/2,H+10); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(43,39,35,.18)'; ctx.beginPath(); ctx.ellipse(ax,fy,fw*.45,hgt*.05,0,0,7); ctx.fill();
+    ctx.save(); ctx.translate(ax,fy-bob); ctx.rotate(sway);
+    if(WALK.complete&&WALK.naturalWidth) ctx.drawImage(WALK,fr*FW,0,FW,FH,-fw/2,-hgt,fw,hgt);
+    ctx.restore();
+    const hx=ax-fw/2+HEADTOP[0]*sc, hy=fy-hgt+HEADTOP[1]*sc-bob;
+    if(want>.6){ ctx.fillStyle='#7FB3D5'; ctx.beginPath(); ctx.ellipse(hx+14,hy+10+Math.sin(t*6)*2,3,5,0,0,7); ctx.fill(); }   // 冒冷汗
+    if(run>2.4){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2.5; for(let k=0;k<3;k++){ const lx=ax-fw*.3+k*fw*.3; ctx.beginPath(); ctx.moveTo(lx,fy+6); ctx.lineTo(lx,fy+16+run*3); ctx.stroke(); } }
+    return {ax:hx,y:hy+18,r:18};
   }
   function hud(){
     const m=Math.floor(walked/PX_M), best=S.best.walkM||0, pz=1+.16*Math.max(0,1-(t-lastM)*4);
