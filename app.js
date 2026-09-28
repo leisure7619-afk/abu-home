@@ -39,7 +39,7 @@ document.addEventListener('error',e=>{
 
 /* 飛機耳照片：AI 從雲端的照片裡找出阿布開飛機耳的，記下頭的位置；摸頭時裁出頭部輪流出現 */
 const EARS_LOCAL={src:'img/face_ears.jpg',size:'100% 100%',pos:'50% 50%'};
-let EARS=[EARS_LOCAL], earsKey='';
+let EARS=[], earsKey=null;
 function earCrop(b,W,H){
   if(!W||!H) return null;
   const x0=b[1]/1000*W, x1=b[3]/1000*W, y0=b[0]/1000*H, y1=b[2]/1000*H;
@@ -52,7 +52,8 @@ function loadEars(){
   const list=PH.filter(p=>Array.isArray(p.ears)&&p.ears.length===4);
   const key=list.map(p=>p.id).join();
   if(key===earsKey) return; earsKey=key;
-  const got=[EARS_LOCAL]; EARS=got;
+  const got=[]; EARS=got;
+  { const im=new Image(); im.onload=()=>got.unshift(EARS_LOCAL); im.src=EARS_LOCAL.src; }   // 圖真的載得到才用，不會出現空白圓圈
   list.sort(()=>Math.random()-.5).slice(0,12).forEach(p=>{     // 每次隨機挑 12 張先載好，摸的時候才不會等
     const im=new Image();
     im.onload=()=>{ const c=earCrop(p.ears,im.naturalWidth,im.naturalHeight); if(c) got.push(Object.assign({src:im.src},c)); };
@@ -292,6 +293,7 @@ function Home(){
   let earI=Math.floor(Math.random()*9);
   /* 摸頭時換下一張飛機耳照片（兩層交叉淡入，不會閃） */
   function showEars(){
+    if(!EARS.length){ hideEars(); setFace(FACES.happy[0]); return; }      // 飛機耳照片都還沒載好：先用開心的臉
     const e=EARS[earI++%EARS.length], lay=earA.classList.contains('on')? earB: earA, other=lay===earA? earB: earA;
     lay.style.backgroundImage=`url("${e.src}")`; lay.style.backgroundSize=e.size; lay.style.backgroundPosition=e.pos;
     lay.classList.add('on'); other.classList.remove('on');
