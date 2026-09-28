@@ -260,6 +260,9 @@ function Home(){
   const setFace=k=>{ if(img.dataset.k===k) return; img.dataset.k=k; img.src=face(k); };
   const say=(t,big)=>{ bubble.textContent=t; bubble.classList.remove('pop','big'); void bubble.offsetWidth; bubble.classList.add(big?'big':'pop'); setTimeout(()=>bubble.classList.remove('pop'),250); };
   const zzz=h('<div class="zzz" aria-hidden="true">Z z z</div>');
+  const petHand=h('<div class="pet-hand" aria-hidden="true"><svg viewBox="0 0 64 84"><use href="#i-pethand"/></svg></div>');
+  abu.appendChild(petHand);
+  let rubDist=0, lastX=null, lastY=null;
   const hat=h(`<svg class="hat" aria-hidden="true"><use href="#i-hat"/></svg>`);
   const resetIdle=()=>{ clearTimeout(idle); idle=setTimeout(sleep,20000); };
   const baseFace=()=> tier>=0? LADDER[tier].faces[0] : FACES.normal;
@@ -338,18 +341,29 @@ function Home(){
     holdT=setTimeout(()=>{
       if(state==='sleep') return;
       bliss=true; clearTimeout(decay); clearTimeout(revert); setFace('face_62'); say('（瞇眼）好舒服…'); renderJoy();
-      abu.classList.add('bliss'); let n=0;
-      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) addLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); },450);
+      abu.classList.add('bliss'); petHand.classList.add('on'); let n=0;
+      const blissLines=['（瞇眼）好舒服…','再往左邊一點','耳朵後面也要','（頭一直往你手上靠）','不要停～','（整隻融化了）'];
+      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) addLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0) say(blissLines[(n/6)%blissLines.length|0]); },450);
     },650);
   }
   function holdEnd(){
     clearTimeout(holdT);
     if(!bliss) return;
-    bliss=false; clearInterval(blissT); abu.classList.remove('bliss');
+    bliss=false; clearInterval(blissT); abu.classList.remove('bliss'); petHand.classList.remove('on'); petHand.style.left=''; lastX=null;
     tier=Math.max(tier,2); combo=Math.max(combo,LADDER[2].at); renderJoy();
     setFace(pick(LADDER[tier].faces)); say(pick(['再抓一下嘛','好舒服喔','那邊那邊！'])); scheduleDecay();
   }
-  abu.addEventListener('pointerdown',e=>{ pet(e); holdStart(); });
+  abu.addEventListener('pointerdown',e=>{ try{ abu.setPointerCapture(e.pointerId); }catch(x){} pet(e); holdStart(); });
+  /* 按住時手指移動：手跟著手指在頭上摸來摸去，摸越多越開心 */
+  abu.addEventListener('pointermove',e=>{
+    if(!bliss) return;
+    const r=abu.getBoundingClientRect();
+    const px=Math.max(22,Math.min(78,(e.clientX-r.left)/r.width*100));
+    petHand.style.left=px+'%';
+    if(lastX!==null){ rubDist+=Math.hypot(e.clientX-lastX,e.clientY-lastY); }
+    lastX=e.clientX; lastY=e.clientY;
+    if(rubDist>90){ rubDist=0; hearts(1,e.clientX-fx.getBoundingClientRect().left,r.top-fx.getBoundingClientRect().top+r.height*.2,20); addLove(1); tone(360+Math.random()*60,.12,'sine',.05,-30); }
+  });
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>abu.addEventListener(ev,holdEnd));
   abu.addEventListener('contextmenu',e=>e.preventDefault());
   abu.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pet(); } });
@@ -607,7 +621,7 @@ function Album(){
     const un=isOpen(p), isNew=un&&!S.seen.includes(p.id)&&(isRecent(p)||S.unlocked.includes(p.id));
     const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock"/></svg>${UNLOCK_COST} 片餅乾</span>`}</button>`);
     el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): unlock(p); };
-    if(API_URL&&!p.sample) longPress(el,()=>deleteDialog(p,()=>go('album',true)));
+    if(API_URL&&!p.sample) longPress(el,()=>photoMenu(p,()=>go('album',true)));
     g.appendChild(el);
   });
 }
@@ -625,15 +639,35 @@ function view(p){
   const del=m.el.querySelector('#delPhoto');
   if(del) del.onclick=()=>{ m.el.remove(); deleteDialog(p,()=>go(back,true)); };
 }
-function deleteDialog(p,done){
-  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>刪除這張照片？</h3><p>照片會移到雲端硬碟垃圾桶，30 天內可以救回。</p>
-    <div class="row"><button class="btn danger" id="delYes">刪除</button><button class="btn ghost" data-close>取消</button></div>`,done);
-  const y=m.el.querySelector('#delYes');
-  y.onclick=async()=>{
-    y.disabled=true; y.textContent='刪除中…'; m.el.dataset.busy='1';
-    try{ await api({action:'delete',id:p.id}); PH=PH.filter(x=>x.id!==p.id); lsSet('abu-photos',{photos:PH,config:CONFIG}); ensureFree(); toast('已刪除'); }
-    catch(err){ toast('刪除失敗：'+err.message); }
-    delete m.el.dataset.busy; m.close();
+function deleteDialog(p,done){ photoMenu(p,done); const all=document.querySelectorAll('.overlay'); const b=all[all.length-1]&&all[all.length-1].querySelector('#delPhoto'); if(b) b.click(); }
+function photoMenu(p,done){
+  const cur=p.cat||'';
+  const opts=[['','相簿'],['美食','美食'],['洗澡','洗澡'],['上廁所','上廁所']];
+  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>這張照片</h3>
+    <p class="meta">放錯地方了？點正確的位置</p>
+    <div class="seg four" id="mvSeg">${opts.map(([c,l])=>`<button data-c="${c}" aria-checked="${c===cur}">${l}</button>`).join('')}</div>
+    <button class="linkbtn del" id="delPhoto">刪除這張照片</button>
+    <button class="btn ghost" data-close>取消</button>`,done);
+  const el=m.el;
+  el.querySelectorAll('#mvSeg button').forEach(b=>b.onclick=async()=>{
+    const c=b.dataset.c; if(c===cur) return;
+    el.querySelectorAll('#mvSeg button').forEach(x=>x.disabled=true); b.textContent='移動中…'; el.dataset.busy='1';
+    try{ await api({action:'recat',id:p.id,cat:c||'回憶',by:S.me}); p.cat=c; p.how='手動'; if(c) S.unlocked.includes(p.id)||S.unlocked.push(p.id); lsSet('abu-photos',{photos:PH,config:CONFIG}); save(); toast(`已移到「${c||'相簿'}」`); }
+    catch(err){ toast('移動失敗：'+err.message); }
+    delete el.dataset.busy; m.close();
+  });
+  el.querySelector('#delPhoto').onclick=()=>{
+    const box=el.querySelector('.dialog');
+    box.innerHTML=`${pimg(p,400,'class="del-thumb" alt=""')}<h3>刪除這張照片？</h3><p>照片會移到雲端硬碟垃圾桶，30 天內可以救回。</p>
+      <div class="row"><button class="btn danger" id="delYes">刪除</button><button class="btn ghost" id="delNo">取消</button></div>`;
+    box.querySelector('#delNo').onclick=()=>m.close();
+    const y=box.querySelector('#delYes');
+    y.onclick=async()=>{
+      y.disabled=true; y.textContent='刪除中…'; el.dataset.busy='1';
+      try{ await api({action:'delete',id:p.id}); PH=PH.filter(x=>x.id!==p.id); lsSet('abu-photos',{photos:PH,config:CONFIG}); ensureFree(); toast('已刪除'); }
+      catch(err){ toast('刪除失敗：'+err.message); }
+      delete el.dataset.busy; m.close();
+    };
   };
 }
 function longPress(el,fn){
@@ -758,7 +792,7 @@ function Food(){
       <div class="dgrid">${photos.length? photos.map(p=>`<div class="dthumb" data-id="${esc(p.id)}">${pimg(p,300,`alt="${esc(p.cap||c.cat)}" loading="lazy"`)}</div>`).join('') : '<p class="meta">還沒有照片</p>'}</div></section>`));
   });
   main.appendChild(s);
-  if(API_URL) s.querySelectorAll('.dthumb').forEach(d=>{ const p=pool().find(x=>x.id===d.dataset.id); if(p&&!p.sample) longPress(d,()=>deleteDialog(p,()=>go('food',true))); });
+  if(API_URL) s.querySelectorAll('.dthumb').forEach(d=>{ const p=pool().find(x=>x.id===d.dataset.id); if(p&&!p.sample) longPress(d,()=>photoMenu(p,()=>go('food',true))); });
 }
 
 /* ---------- 洗澡 ---------- */
