@@ -209,8 +209,8 @@
   .album{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .photo{aspect-ratio:3/4;border-radius:14px;overflow:hidden;position:relative;background:var(--lawn-deep)}
   .photo img{width:100%;height:100%;object-fit:cover;display:block}
-  .photo.locked img{filter:blur(10px) saturate(.4);transform:scale(1.15)}
-  .photo .lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(43,39,35,.35);color:#fff;font-weight:700;font-size:13px}
+  .photo.locked img{filter:blur(5px) saturate(.7);transform:scale(1.1)}
+  .photo .lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:rgba(255,253,247,.62);color:var(--ink);font-weight:700;font-size:13px}
   .photo .lock svg{width:26px;height:26px}
   .photo .new{position:absolute;left:6px;top:6px;background:var(--collar);color:var(--ink);font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;letter-spacing:.06em}
   .progress{font-size:13px;color:var(--ink-soft)}
@@ -502,10 +502,19 @@
   .reel-mini{flex:none;width:84px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;background:var(--ink);color:#fff;text-align:left}
   .reel-mini img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .reel-mini::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,.7))}
-  .reel-mini span{position:absolute;left:6px;right:6px;bottom:6px;z-index:1;display:flex;flex-direction:column;gap:1px}
+  .reel-mini .mtxt{position:absolute;left:6px;right:6px;bottom:6px;z-index:1;display:flex;flex-direction:column;gap:1px}
   .reel-mini i{font-style:normal;font-size:10px;opacity:.85;font-variant-numeric:tabular-nums}
   .reel-mini b{font-family:var(--font-display);font-weight:400;font-size:13px;line-height:1.25}
-  .reel-mini em{position:absolute;left:6px;top:6px;z-index:1;background:var(--collar);color:var(--ink);font-style:normal;font-size:10px;font-weight:800;border-radius:6px;padding:1px 5px}
+  /* 還沒解鎖：蓋一層半透明白霧，一眼分得出來 */
+  .veil{position:absolute;inset:0;z-index:1;background:rgba(255,253,247,.62);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink);font-size:11px;font-weight:700}
+  .veil svg{width:24px;height:24px}
+  .reel-main.locked img,.reel-mini.locked img{filter:blur(5px) saturate(.7);transform:scale(1.08)}
+  .reel-main.locked::after,.reel-mini.locked::after{display:none}
+  .reel-main.locked .reel-meta{z-index:2;color:var(--ink)}
+  .reel-main.locked .reel-meta b{text-shadow:none}
+  .reel-main.locked .reel-play{z-index:2}
+  .reel-main.locked .reel-play svg{margin-left:0;width:26px;height:26px}
+  .reel-mini.locked .mtxt{z-index:2;color:var(--ink);text-shadow:none}
   .photo .lock small{font-size:11px;font-weight:400;opacity:.9}
 
   .reel-ov{position:absolute;inset:0;z-index:40;background:#000;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;animation:fade .2s}
@@ -569,6 +578,7 @@
     <symbol id="i-tub" viewBox="0 0 32 32"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h26v3a7 7 0 0 1-7 7H10a7 7 0 0 1-7-7z"/><path d="M8 26l-1.5 3M24 26l1.5 3M7 16V7a3 3 0 0 1 6 0"/></g><circle cx="18" cy="11" r="2" fill="currentColor"/><circle cx="23" cy="8" r="1.5" fill="currentColor"/><circle cx="24" cy="13" r="1.2" fill="currentColor"/></symbol>
     <symbol id="i-potty" viewBox="0 0 32 32"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M16 5c1 2 4 2.5 4 5 3 .5 5 3 4.5 5.5 2.5 1 3.5 3.5 3 6-.6 3-3.5 4.5-6.5 4.5H11c-3 0-5.9-1.5-6.5-4.5-.5-2.5.5-5 3-6-.5-2.5 1.5-5 4.5-5.5 0-2 2-3.5 4-5z"/></g><circle cx="12.5" cy="18" r="1.6" fill="currentColor"/><circle cx="19.5" cy="18" r="1.6" fill="currentColor"/><path d="M13 22c1.8 1.4 4.2 1.4 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-pethand" viewBox="0 0 64 84"><rect x="19" y="0" width="26" height="16" rx="3" fill="#9CC9E6" stroke="#2B2723" stroke-width="3"/><g fill="#2B2723" stroke="#2B2723" stroke-width="6" stroke-linejoin="round"><rect x="13" y="12" width="38" height="32" rx="13"/><rect x="14.5" y="34" width="9" height="28" rx="4.5"/><rect x="23.5" y="36" width="9" height="32" rx="4.5"/><rect x="32.5" y="36" width="9" height="31" rx="4.5"/><rect x="41.5" y="34" width="8.5" height="25" rx="4.25"/><rect x="4" y="22" width="10" height="22" rx="5" transform="rotate(28 9 33)"/></g><g fill="#FBE3CC"><rect x="13" y="12" width="38" height="32" rx="13"/><rect x="14.5" y="34" width="9" height="28" rx="4.5"/><rect x="23.5" y="36" width="9" height="32" rx="4.5"/><rect x="32.5" y="36" width="9" height="31" rx="4.5"/><rect x="41.5" y="34" width="8.5" height="25" rx="4.25"/><rect x="4" y="22" width="10" height="22" rx="5" transform="rotate(28 9 33)"/></g><path d="M23.5 50v10M32.5 52v10M41.5 50v8" stroke="#E7B99A" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-lock-d" viewBox="0 0 32 32"><g fill="none" stroke="#2B2723" stroke-width="2.6"><rect x="7" y="14" width="18" height="13" rx="3"/><path d="M11 14v-4a5 5 0 0 1 10 0v4"/></g></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></symbol>
     <symbol id="i-x-w" viewBox="0 0 24 24"><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-snd-w" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></g></symbol>

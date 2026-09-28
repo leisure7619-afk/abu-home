@@ -667,7 +667,7 @@ function Album(){
     const y=yearOf(p);
     if(y && y!==year){ year=y; g.appendChild(h(`<div class="month year">${y==='?'?'拍攝日期不明':y+' 年'}<span>${perYear[y]} 張</span></div>`)); }
     const un=isOpen(p), isNew=un&&!S.seen.includes(p.id)&&(isRecent(p)||S.unlocked.includes(p.id));
-    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock"/></svg>${PACK_COST} 片餅乾<small>解鎖 ${PACK_SIZE} 張</small></span>`}</button>`);
+    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock-d"/></svg>${PACK_COST} 片餅乾<small>解鎖 ${PACK_SIZE} 張</small></span>`}</button>`);
     el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): unlock(p); };
     if(API_URL&&!p.sample) longPress(el,()=>photoMenu(p,()=>go('album',true)));
     g.appendChild(el);
@@ -1189,9 +1189,10 @@ function reelStrip(){
   const main=list[0]&&list[0].day===today? list[0]: null;
   if(main){
     const seen=(S.reelSeen||[]).includes(main.day+main.key);
-    const b=h(`<button class="reel-main" aria-label="播放今天的阿布短片：${esc(main.title)}">${cover(main,800)}
-      <span class="reel-meta"><span class="reel-tag">${seen?'今日短片':'今日短片・NEW'}</span><b>${esc(main.title)}</b><small>${esc(main.name)}・15 秒${reelIsOpen(main)?'':`・${REEL_COST} 片餅乾`}</small></span>
-      <span class="reel-play"><svg><use href="#i-play"/></svg></span></button>`);
+    const open=reelIsOpen(main);
+    const b=h(`<button class="reel-main${open?'':' locked'}" aria-label="${open?'播放':'解鎖'}今天的阿布短片：${esc(main.title)}">${cover(main,800)}${open?'':'<span class="veil"></span>'}
+      <span class="reel-meta"><span class="reel-tag">${seen?'今日短片':'今日短片・NEW'}</span><b>${esc(main.title)}</b><small>${esc(main.name)}・15 秒${open?'':`・${REEL_COST} 片餅乾解鎖`}</small></span>
+      <span class="reel-play"><svg><use href="${open?'#i-play':'#i-lock-d'}"/></svg></span></button>`);
     b.onclick=()=>playReel(list,0);
     box.appendChild(b);
   }else if(waiting){
@@ -1201,7 +1202,8 @@ function reelStrip(){
   if(rest.length){
     const row=h(`<div class="reel-row"></div>`);
     rest.forEach(r=>{
-      const b=h(`<button class="reel-mini" aria-label="播放 ${md(r.day)} 的短片：${esc(r.title)}">${cover(r,300)}${reelIsOpen(r)?'':`<em>${REEL_COST} 片餅乾</em>`}<span><i>${r.day===today?'今天':md(r.day)}</i><b>${esc(r.title)}</b></span></button>`);
+      const open=reelIsOpen(r);
+      const b=h(`<button class="reel-mini${open?'':' locked'}" aria-label="${open?'播放':'解鎖'} ${md(r.day)} 的短片：${esc(r.title)}">${cover(r,300)}${open?'':`<span class="veil"><svg><use href="#i-lock-d"/></svg>${REEL_COST} 片餅乾</span>`}<span class="mtxt"><i>${r.day===today?'今天':md(r.day)}</i><b>${esc(r.title)}</b></span></button>`);
       b.onclick=()=>playReel(list,list.indexOf(r));
       row.appendChild(b);
     });
