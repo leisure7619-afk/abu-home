@@ -521,6 +521,15 @@
   .reel-shot{position:absolute;inset:0;overflow:hidden;visibility:hidden}
   .reel-shot.on{visibility:visible}
   .reel-shot img{position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;will-change:transform;-webkit-touch-callout:none;pointer-events:none}
+  .reel-shot video{position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;object-fit:cover;background:transparent;pointer-events:none}
+  /* 影片：縮圖右上角的播放標記＋長度；檢視時用雲端硬碟的播放器 */
+  .vbadge{position:absolute;right:6px;top:6px;z-index:2;display:flex;align-items:center;gap:2px;background:rgba(20,17,15,.62);color:#fff;font-size:11px;font-weight:700;border-radius:8px;padding:2px 6px 2px 4px;font-variant-numeric:tabular-nums}
+  .vbadge svg{width:12px;height:12px}
+  .dthumb{position:relative}
+  .dthumb .veil svg{width:18px;height:18px}
+  .dthumb.locked img{filter:blur(4px) saturate(.7)}
+  .vframe{width:100%;aspect-ratio:9/16;max-height:62vh;border-radius:16px;overflow:hidden;background:#000}
+  .vframe iframe{width:100%;height:100%;border:0;display:block}
   .reel-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
   .reel-top{position:absolute;left:0;right:0;top:0;z-index:3;padding:10px 12px 30px;display:flex;flex-direction:column;gap:8px;background:linear-gradient(rgba(0,0,0,.5),rgba(0,0,0,0))}
   .reel-bar{height:3px;border-radius:2px;background:rgba(255,255,255,.35);overflow:hidden}

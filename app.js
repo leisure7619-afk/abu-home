@@ -13,6 +13,7 @@ const SAMPLE = [
 const PACK_COST = 1, PACK_SIZE = 10;   // 1 片餅乾解鎖 10 張照片
 const REEL_COST = 2;                   // 2 片餅乾解鎖一支短片（解鎖後可以一直重看）
 const LEVEL_GIFT = 3;                  // 好感升一級，阿布送 3 片餅乾
+const VIDEO_COST = 2;                  // 2 片餅乾解鎖一支影片
 /* 阿布最愛的餅乾：牛肉、羊肉、雞肉三種口味 */
 const SHAPES = ['strawberry','bear','bone','lion','apple','rabbit','grape','monkey'].map(n=>'img/biscuit/'+n+'.png');
 const FLAVORS = [{n:'牛肉',c:'#9C5A2E'},{n:'羊肉',c:'#BF8543'},{n:'雞肉',c:'#DDB067'}];
@@ -51,7 +52,7 @@ function earCrop(b,W,H){
   return { size:`${W/S*100}% ${H/S*100}%`, pos:`${W>S+1? L/(W-S)*100:50}% ${H>S+1? T/(H-S)*100:50}%` };
 }
 function loadEars(){
-  const list=PH.filter(p=>Array.isArray(p.ears)&&p.ears.length===4);
+  const list=PH.filter(p=>!isVid(p)&&Array.isArray(p.ears)&&p.ears.length===4);
   const key=list.map(p=>p.id).join();
   if(key===earsKey) return; earsKey=key;
   const got=[]; EARS=got;
@@ -88,10 +89,13 @@ let PH = [], CONFIG = { lostLink:'', lostNote:'', birthday:'', meals:'', bathDay
 })();
 const pool = () => PH.length? PH: SAMPLE;
 const isRecent = p => !p.sample && p.t && Date.now()-p.t < NEW_DAYS*864e5;
-const isOpen = p => ['美食','洗澡','上廁所'].includes(p.cat) || S.unlocked.includes(p.id) || isRecent(p);
-const openPhotos = () => { const o=pool().filter(isOpen); return o.length? o: pool().slice(0,FREE_OPEN); };
+const isVid = p => Array.isArray(p.v);                                   // 影片：p.v = [秒數, 寬, 高]
+const vdur = p => { const d=Math.round((p.v&&p.v[0])||0); return d? `${Math.floor(d/60)}:${String(d%60).padStart(2,'0')}` : ''; };
+const isOpen = p => isVid(p)? S.unlocked.includes(p.id) : (['美食','洗澡','上廁所'].includes(p.cat) || S.unlocked.includes(p.id) || isRecent(p));
+const photosOnly = () => pool().filter(p=>!isVid(p));
+const openPhotos = () => { const o=photosOnly().filter(isOpen); return o.length? o: photosOnly().slice(0,FREE_OPEN); };
 function ensureFree(){
-  const list=pool(); let n=list.filter(isOpen).length;
+  const list=photosOnly(); let n=list.filter(isOpen).length;
   for(const p of list){ if(n>=FREE_OPEN) break; if(!isOpen(p)){ S.unlocked.push(p.id); n++; } }
   save();
 }
@@ -657,9 +661,9 @@ function Album(){
   $('#reelBox').replaceWith(reelStrip()); ensureTodayReel();
   $('#upBtn').onclick=()=>{ sfx.pop(); uploadDialog(); };
   const g=$('#grid');
-  const open=list.filter(isOpen).length;
+  const ph=list.filter(p=>!isVid(p)), vs=list.filter(isVid), open=ph.filter(isOpen).length;
   $('#prog').textContent = PH_STATE==='loading'&&!PH.length? '從雲端硬碟讀照片中…'
-    : `已解鎖 ${open} / ${list.length} 張${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
+    : `已解鎖 ${open} / ${ph.length} 張${vs.length?`、影片 ${vs.filter(isOpen).length} / ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
   const yearOf=p=>p.sample? '' : p.taken? String(new Date(p.taken).getFullYear()) : '?';
   const perYear={}; list.forEach(p=>{ const y=yearOf(p); perYear[y]=(perYear[y]||0)+1; });
   let year=null;
@@ -667,8 +671,8 @@ function Album(){
     const y=yearOf(p);
     if(y && y!==year){ year=y; g.appendChild(h(`<div class="month year">${y==='?'?'拍攝日期不明':y+' 年'}<span>${perYear[y]} 張</span></div>`)); }
     const un=isOpen(p), isNew=un&&!S.seen.includes(p.id)&&(isRecent(p)||S.unlocked.includes(p.id));
-    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||'阿布的照片'):'未解鎖照片'}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock-d"/></svg>${PACK_COST} 片餅乾<small>解鎖 ${PACK_SIZE} 張</small></span>`}</button>`);
-    el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): unlock(p); };
+    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||(isVid(p)?'阿布的影片':'阿布的照片')):(isVid(p)?'未解鎖影片':'未解鎖照片')}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock-d"/></svg>${isVid(p)?`${VIDEO_COST} 片餅乾<small>解鎖這支影片</small>`:`${PACK_COST} 片餅乾<small>解鎖 ${PACK_SIZE} 張</small>`}</span>`}${isVid(p)?vbadge(p):''}</button>`);
+    el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): isVid(p)? unlockVideo(p): unlock(p); };
     if(API_URL&&!p.sample) longPress(el,()=>photoMenu(p,()=>go('album',true)));
     g.appendChild(el);
   });
@@ -680,10 +684,13 @@ function view(p){
   sfx.pop();
   const cap = p.cap? esc(p.cap) : (API_URL&&!p.sample&&CONFIG.ai? '<span class="meta">AI 正在寫這張的回憶，晚點再來看</span>' : '');
   const date = p.sample? '' : p.taken? `拍攝於 ${ymd(p.taken)}` : '拍攝日期不明';
-  m=modal(`${pimg(p,1600,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}
+  const media = isVid(p)? `<div class="vframe"><iframe src="https://drive.google.com/file/d/${encodeURIComponent(p.id)}/preview" allow="autoplay; fullscreen" allowfullscreen title="阿布的影片"></iframe></div>`
+    : pimg(p,1600,`class="big-photo" alt="${esc(p.cap||'阿布')}"`);
+  m=modal(`${media}
     ${cap?`<p class="vcap">${cap}</p>`:''}${date?`<span class="meta">${date}</span>`:''}
     <button class="btn" data-close>關閉</button>
-    ${API_URL&&!p.sample?'<button class="linkbtn del" id="delPhoto">刪除這張照片</button>':''}`,()=>go(back,true));
+    ${API_URL&&!p.sample?`<button class="linkbtn del" id="delPhoto">${isVid(p)?'刪除這支影片':'刪除這張照片'}</button>`:''}`,()=>go(back,true));
+  if(isVid(p)) fitVideo(p,m.el.querySelector('.vframe'));
   const del=m.el.querySelector('#delPhoto');
   if(del) del.onclick=()=>{ m.el.remove(); deleteDialog(p,()=>go(back,true)); };
 }
@@ -691,7 +698,7 @@ function deleteDialog(p,done){ photoMenu(p,done); const all=document.querySelect
 function photoMenu(p,done){
   const cur=p.cat||'';
   const opts=[['','相簿'],['美食','美食'],['洗澡','洗澡'],['上廁所','上廁所']];
-  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>這張照片</h3>
+  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>${isVid(p)?'這支影片':'這張照片'}</h3>
     <p class="meta">放錯地方了？點正確的位置</p>
     <div class="seg four" id="mvSeg">${opts.map(([c,l])=>`<button data-c="${c}" aria-checked="${c===cur}">${l}</button>`).join('')}</div>
     <button class="linkbtn del" id="delPhoto">刪除這張照片</button>
@@ -726,10 +733,24 @@ function longPress(el,fn){
   el.addEventListener('contextmenu',e=>e.preventDefault());
   el.style.userSelect='none'; el.style.webkitUserSelect='none';
 }
+/* 影片：2 片餅乾解鎖一支 */
+function unlockVideo(p){
+  if(S.bones<VIDEO_COST){ sfx.bad(); toast(`看影片要 ${VIDEO_COST} 片餅乾，還差 ${VIDEO_COST-S.bones} 片，去玩小遊戲吧`,2600); return; }
+  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>解鎖這支影片？</h3><p>用 ${VIDEO_COST} 片餅乾${vdur(p)?`（${vdur(p)}）`:''}，解鎖後可以一直重看。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">解鎖</button><button class="btn ghost" data-close>先不要</button></div>`);
+  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-VIDEO_COST); S.unlocked.push(p.id); save(); sfx.win(); bark(1); view(p); };
+}
+function vbadge(p){ return `<span class="vbadge"><svg><use href="#i-play"/></svg>${vdur(p)}</span>`; }
+/* 影片框：照縮圖的長寬比決定大小（iPhone 直拍的影片是直的） */
+function fitVideo(p,box){
+  const set=(a)=>{ const dlg=box.parentElement, W=Math.min(dlg.clientWidth-36,560), H=window.innerHeight*.62; let w=Math.min(W,H*a); box.style.width=w+'px'; box.style.height=(w/a)+'px'; };
+  set(p.v&&p.v[1]&&p.v[2]? p.v[1]/p.v[2] : 9/16);
+  const im=new Image(); im.onload=()=>{ if(im.naturalWidth) set(im.naturalWidth/im.naturalHeight); }; im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w400`; } };
+  im.src=purl(p,400);
+}
 /* 1 片餅乾解鎖 10 張：從點的這張開始，照相簿順序往下數 10 張還沒解鎖的 */
 function unlock(p){
   if(S.bones<PACK_COST){ sfx.bad(); toast(`還差 ${PACK_COST-S.bones} 片餅乾，去玩小遊戲吧`); return; }
-  const locked=albumList().filter(x=>!isOpen(x)), i=Math.max(0,locked.indexOf(p));
+  const locked=albumList().filter(x=>!isOpen(x)&&!isVid(x)), i=Math.max(0,locked.indexOf(p));
   const pack=[...locked.slice(i),...locked.slice(0,i)].slice(0,PACK_SIZE);
   if(!pack.includes(p)) pack.unshift(p);
   const m=modal(`<h3>解鎖 ${pack.length} 張回憶？</h3><p>用 ${PACK_COST} 片餅乾，從這張開始往下解鎖 ${pack.length} 張。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">解鎖</button><button class="btn ghost" data-close>先不要</button></div>`);
@@ -766,6 +787,7 @@ function uploadDialog(){
   const back=current;
   const m=modal(`<h3>上傳阿布的照片</h3>
     <p class="meta">選照片就好，不用分類也不用寫字：AI 會看照片，美食、洗澡、上廁所的放進「日常」，其他的放相簿，還會幫每張寫一句回憶。</p>
+    <p class="meta">影片不從這裡傳：請用手機的 Google 雲端硬碟 App，放進「阿布照片／影片」資料夾。</p>
     ${whoField('upBy','例：媽媽、小明')}
     <label class="picker drop"><svg><use href="#i-album"/></svg><b>選照片</b><span>可以一次選很多張</span><input type="file" id="upFiles" accept="image/*" multiple></label>
     <div class="uplist" id="uplist"></div>
@@ -841,10 +863,12 @@ function Food(){
   DIARY_CATS.forEach(c=>{
     const photos=pool().filter(p=>p.cat===c.cat).sort((a,b)=>ptime(b)-ptime(a));
     s.appendChild(h(`<section class="dsec ${c.cls}"><h3><svg><use href="#${c.icon}"/></svg>${c.cat}</h3>
-      <div class="dgrid">${photos.length? photos.map(p=>`<div class="dthumb" data-id="${esc(p.id)}">${pimg(p,300,`alt="${esc(p.cap||c.cat)}" loading="lazy"`)}</div>`).join('') : '<p class="meta">還沒有照片</p>'}</div></section>`));
+      <div class="dgrid">${photos.length? photos.map(p=>`<div class="dthumb${isVid(p)&&!isOpen(p)?' locked':''}" data-id="${esc(p.id)}">${pimg(p,300,`alt="${esc(p.cap||c.cat)}" loading="lazy"`)}${isVid(p)? (isOpen(p)? '' : `<span class="veil"><svg><use href="#i-lock-d"/></svg>${VIDEO_COST} 片</span>`)+vbadge(p) : ''}</div>`).join('') : '<p class="meta">還沒有照片</p>'}</div></section>`));
   });
   main.appendChild(s);
-  if(API_URL) s.querySelectorAll('.dthumb').forEach(d=>{ const p=pool().find(x=>x.id===d.dataset.id); if(p&&!p.sample) longPress(d,()=>photoMenu(p,()=>go('food',true))); });
+  s.querySelectorAll('.dthumb').forEach(d=>{ const p=pool().find(x=>x.id===d.dataset.id); if(!p) return;
+    if(isVid(p)) d.onclick=()=>{ if(d._lp){ d._lp=false; return; } isOpen(p)? view(p): unlockVideo(p); };   // 影片點一下就播
+    if(API_URL&&!p.sample) longPress(d,()=>photoMenu(p,()=>go('food',true))); });
 }
 
 /* ---------- 洗澡 ---------- */
@@ -1351,9 +1375,24 @@ function openReel(list,idx){
     im.onerror=()=>{ if(!p.sample&&!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w1600`; } else res(null); };
     im.src= p.url || `https://lh3.googleusercontent.com/d/${p.id}=s1600`;
   });
+  /* 影片片段：直接跟雲端硬碟要檔案來播（靜音，配樂蓋過去）；9 秒內準備不好、或手機播不了這種格式，就改用縮圖 */
+  const loadVid=it=>new Promise(res=>{
+    const v=document.createElement('video'); let done=false;
+    v.muted=true; v.defaultMuted=true; v.playsInline=true; v.preload='auto'; v.setAttribute('playsinline',''); v.setAttribute('muted',''); v.className='rvid';
+    const fin=ok=>{ if(done) return; done=true; clearTimeout(t); if(ok) it.vid=v; else { v.removeAttribute('src'); try{ v.load(); }catch(e){} } res(); };
+    const t=setTimeout(()=>fin(false),8000);
+    v.onloadedmetadata=()=>{
+      const d=isFinite(v.duration)? v.duration : (it.p.v[0]||0); it.vstart=Math.max(0,Math.min(d*.3,d-3.2));
+      try{ v.currentTime=it.vstart; }catch(e){}
+      // iPhone 不會先下載影片內容：靜音播一下再停，逼它先緩衝好
+      const pr=v.play(); if(pr&&pr.then) pr.then(()=>{ v.pause(); try{ v.currentTime=it.vstart; }catch(e){} fin(true); }).catch(()=>fin(false)); else fin(true);
+    };
+    v.onerror=()=>fin(false);
+    v.src=`https://drive.google.com/uc?export=download&id=${encodeURIComponent(it.p.id)}`;
+  });
   let got=0;
   const timeout=new Promise(r=>setTimeout(()=>r('timeout'),15000));
-  const loads=items.map(it=>loadOne(it.p).then(im=>{ got++; const s=$$('.reel-load span'); if(s) s.textContent=`${got} / ${items.length}`; it.im=im; return im; }));
+  const loads=items.map(it=>Promise.all([loadOne(it.p),isVid(it.p)&&!it.p.sample? loadVid(it): null]).then(([im])=>{ got++; const s=$$('.reel-load span'); if(s) s.textContent=`${got} / ${items.length}`; it.im=im; return im; }));
   Promise.race([Promise.all(loads),timeout]).then(()=>{
     if(!alive) return;
     shots=items.filter(it=>it.im&&it.im.naturalWidth);
@@ -1368,6 +1407,7 @@ function openReel(list,idx){
       s.say = i===shots.length-1? (reel.end||s.say) : i===0? '' : s.say;
       const wrap=document.createElement('div'); wrap.className='reel-shot'; shotsEl.appendChild(wrap);   // 不要用 h()：template 裡的元素會讓照片重新載入
       s.im.alt=''; s.im.draggable=false; wrap.appendChild(s.im); s.el=wrap;
+      if(s.vid){ wrap.appendChild(s.vid); s.vid.onerror=()=>{ s.vid.remove(); s.vid=null; }; }   // 影片蓋在縮圖上面，播不了就露出縮圖
     });
     TOTAL=P.bars*4*spb;
     layout();
@@ -1400,12 +1440,14 @@ function openReel(list,idx){
       const w=s.im.naturalWidth, hh=s.im.naturalHeight, s0=Math.max(W/w,H/hh);
       s.w=w; s.h=hh; s.s0=s0;
       s.im.style.width=w*s0+'px'; s.im.style.height=hh*s0+'px';
+      if(s.vid){ s.vid.style.width=s.im.style.width; s.vid.style.height=s.im.style.height; }
       const last=i===shots.length-1, dur=s.beats*spb+(last?TAIL:0);
       let type= i===0||last? 'in' : MOVES[(i-1)%MOVES.length];
       const hd=headOf(s.p);
       let fx=w/2, fy=hh*.42, kf=1.12;
       if(hd){ fx=(hd[1]+hd[3])/2000*w; fy=(hd[0]+hd[2])/2000*hh; const hs=Math.max((hd[3]-hd[1])/1000*w,(hd[2]-hd[0])/1000*hh)*s0; kf=Math.min(1.42,Math.max(1.08,Math.min(W,H)*.66/hs)); }
-      kf=Math.min(kf, Math.pow(1.16,Math.max(1,dur)), Math.max(1.05,2.1/(s0*dpr)));   // 慢慢推：每秒最多放大 16%，也不超過照片解析度
+      kf=Math.min(kf, Math.pow(1.16,Math.max(1,dur)), Math.max(1.05,2.1/(s0*dpr)));
+      if(s.vid){ kf=Math.min(kf,1.06); type='in'; }                                  // 影片本身會動，鏡頭只輕輕推   // 慢慢推：每秒最多放大 16%，也不超過照片解析度
       const lerp=(a,b,t)=>a+(b-a)*t, F={k:kf,cx:fx,cy:fy}, soft={k:1,cx:lerp(w/2,fx,.45),cy:lerp(hh/2,fy,.45)};
       s.A=soft; s.B=F;
       if(type==='pan'){
@@ -1426,6 +1468,7 @@ function openReel(list,idx){
     const k=s.A.k*Math.pow(s.B.k/s.A.k,e)*punch, S2=s.s0*k, hw=W/2/S2, hh=H/2/S2;
     const cx=Math.min(Math.max(s.A.cx+(s.B.cx-s.A.cx)*e,hw),s.w-hw), cy=Math.min(Math.max(s.A.cy+(s.B.cy-s.A.cy)*e,hh),s.h-hh);
     s.im.style.transform=`translate3d(${(W/2-cx*S2).toFixed(2)}px,${(H/2-cy*S2).toFixed(2)}px,0) scale(${k.toFixed(4)})`;
+    if(s.vid) s.vid.style.transform=s.im.style.transform;
   }
   function say(text,big){
     sayEl.textContent=text; sayEl.hidden=!text; sayEl.classList.toggle('big',!!big);
@@ -1436,8 +1479,9 @@ function openReel(list,idx){
     let i=shots.findIndex(s=>beat<s.b0+s.beats); if(i<0) i=shots.length-1;
     const s=shots[i];
     if(i!==cur){
-      if(cur>=0) shots[cur].el.classList.remove('on');
+      if(cur>=0){ shots[cur].el.classList.remove('on'); if(shots[cur].vid) shots[cur].vid.pause(); }
       s.el.classList.add('on'); cur=i;
+      if(s.vid&&!paused){ const v=s.vid; v.play().catch(()=>{ v.remove(); s.vid=null; }); }
       if(i>=1) titleEl.hidden=true;
       if(s.say){ say(s.say,i===shots.length-1); sayAt=t; }
     }
@@ -1476,6 +1520,7 @@ function openReel(list,idx){
   }
   function close(){
     if(!alive) return; alive=false; cancelAnimationFrame(raf); stopAudio();
+    items.forEach(it=>{ if(it.vid){ it.vid.pause(); it.vid.removeAttribute('src'); try{ it.vid.load(); }catch(e){} } });
     document.removeEventListener('visibilitychange',onVis); window.removeEventListener('resize',onResize);
     ov.remove();
     if(current==='album') go('album',true);
@@ -1483,6 +1528,7 @@ function openReel(list,idx){
   function togglePause(){
     if(!started||ended) return;
     paused=!paused; $$('.reel-paused').hidden=!paused;
+    const cv=cur>=0&&shots[cur].vid; if(cv){ paused? cv.pause() : cv.play().catch(()=>{}); }
     if(useAudio){ paused? c.suspend(): c.resume(); }
     else if(paused){ perfOff=perfOff+performance.now()/1000-perfBase; } else { perfBase=performance.now()/1000; }
     if(!paused){ cancelAnimationFrame(raf); raf=requestAnimationFrame(frame); }
