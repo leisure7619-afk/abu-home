@@ -126,7 +126,9 @@
   @keyframes toss{0%{transform:translateY(0) rotate(0)}100%{transform:translateY(-200px) rotate(540deg) scale(.4);opacity:.2}}
 
   .hint{text-align:center;color:var(--ink-soft);font-size:13px}
-  .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .act .ico-emoji{font-size:28px;line-height:34px;height:34px}
+  .flying-bone.drop{font-size:34px}
   .act{
     background:var(--paper);border-radius:18px;padding:12px 4px 10px;
     display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -583,6 +585,16 @@
   .blist .bn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .blist b{font-variant-numeric:tabular-nums}
   .blist .empty{justify-content:center;color:var(--ink-soft)}
+  /* ---------- 飢餓、口渴（全家共用） ---------- */
+  .needs{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;background:var(--paper);border-radius:var(--radius);padding:9px 14px}
+  .need{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;white-space:nowrap}
+  .nbar{flex:1;height:9px;border-radius:99px;background:var(--urajiro);overflow:hidden}
+  .nbar i{display:block;height:100%;width:100%;border-radius:99px;background:#8DBF7A;transition:width .5s}
+  .need.mid .nbar i{background:#E3B341}
+  .need.low .nbar i{background:var(--bad);animation:pulse 1.4s ease-in-out infinite}
+  .need.low span{color:var(--bad)}
+  #needWho{grid-column:1/-1;font-size:11px;color:var(--ink-soft)}
+  #needWho:empty{display:none}
 </style>
 </head>
 <body>

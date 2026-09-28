@@ -107,6 +107,7 @@ async function loadPhotos(fresh){
     PH=uniq(j.photos||[]).map(normCat); CONFIG=Object.assign({lostLink:'',lostNote:'',birthday:'',meals:'',bathDays:''},j.config||{}); PH_STATE='ok';
     if(j.feeds){ FEEDS=j.feeds; lsSet('abu-feeds',FEEDS); }
     if(Array.isArray(j.reels)){ REELS=j.reels; REELS_ON_SERVER=true; lsSet('abu-reels',REELS); } else REELS_ON_SERVER=false;
+    if(j.needs) setNeeds(j.needs);
     lsSet('abu-photos',{photos:PH,config:CONFIG});
     loadEars();
   }catch(e){
@@ -175,6 +176,10 @@ function modal(inner,onClose){
   return {el:o,close};
 }
 function addBones(n){ S.bones+=n; save(); renderTop(); }
+function petLove(n){                                          // 摸頭的好感：肚子餓或口渴時只有一半
+  if(!needy()) return addLove(n);
+  S.halfAcc=(S.halfAcc||0)+n/2; const k=Math.floor(S.halfAcc); S.halfAcc-=k; if(k) addLove(k); else save();
+}
 function addLove(n){
   const before=Math.floor(S.love/40); S.love+=n; const up=Math.floor(S.love/40)-before;
   save(); if(current==='home') renderLove();
@@ -239,6 +244,30 @@ function walkPhotos(){
   if(all.length>=3) return all;                                   // 散步照不管解鎖與否都能在這裡看到
   return mine.concat(all,SAMPLE.filter(p=>['s41','s49','s53','s69','s126'].includes(p.id)));
 }
+/* 阿布的飢餓、口渴：全家共用（存在雲端），12 小時從飽到餓、8 小時從不渴到很渴 */
+const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3;
+let NEEDS=lsGet('abu-needs')||{f:1,ft:Date.now(),fb:'',w:1,wt:Date.now(),wb:''};
+const fullNow=()=>Math.max(0,Math.min(1,NEEDS.f-(Date.now()-NEEDS.ft)/NEED_EAT));
+const waterNow=()=>Math.max(0,Math.min(1,NEEDS.w-(Date.now()-NEEDS.wt)/NEED_DRINK));
+const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, needy=()=>hungry()||thirsty();
+function setNeeds(n){ if(n&&typeof n.f==='number'){ NEEDS=n; lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
+async function careAbu(kind){                                 // 先在手機上更新，再告訴雲端（全家同步）
+  const now=Date.now();
+  if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||''}); }
+  else { NEEDS=Object.assign({},NEEDS,{w:1,wt:now,wb:S.me||''}); }
+  lsSet('abu-needs',NEEDS); renderNeeds();
+  if(API_URL){ try{ const j=await api({action:kind,by:S.me||''}); setNeeds(j.needs); }catch(e){} }
+}
+const ago=t=>{ const m=Math.round((Date.now()-t)/60000); return m<1?'剛剛': m<60? `${m} 分鐘前` : m<1440? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
+function renderNeeds(){
+  const box=$('#needs'); if(!box) return;
+  const f=fullNow(), w=waterNow();
+  const set=(id,v)=>{ const el=box.querySelector(id); el.querySelector('i').style.width=(v*100)+'%'; el.classList.toggle('low',v<.25); el.classList.toggle('mid',v>=.25&&v<.5); };
+  set('#needF',f); set('#needW',w);
+  const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`].filter(Boolean).join('・');
+  box.querySelector('#needWho').textContent= who || (f<.25||w<.25? '阿布在等人照顧…' : '');
+}
+
 /* ================= 主畫面 ================= */
 function levelInfo(){ const per=40; const lv=Math.floor(S.love/per); return {lv:lv+1,title:LEVELS[Math.min(lv,LEVELS.length-1)],pct:(S.love%per)/per*100,left:per-S.love%per}; }
 function renderLove(){
@@ -280,6 +309,7 @@ function greeting(){
   else if(hr<17) line= name? `${name}，下午好～` : '下午好～陪我玩一下';
   else line= name? `${name}你回來了！` : '晚上好～今天過得好嗎？';
   try{ const B=bathInfo(); if(B.last&&B.days===0&&mood==='normal') line='我今天洗香香了，聞聞看！'; }catch(e){}
+  if(mood==='normal'&&(fullNow()<.25||waterNow()<.25)) line= fullNow()<.25? '肚子好餓…可以給我餅乾嗎？' : '好渴喔…可以給我水嗎？';
   if(isBirthday()){ line='今天是我的生日！汪！'; mood='bday'; }
   S.lastSeen=now; S.lastDay=today; save();
   return {line,gift,mood,missed,first};
@@ -289,6 +319,7 @@ function Home(){
   const s=h(`<section class="screen">
     <div id="lostBox"></div>
     <div class="love" id="love"><span class="lv">Lv.1</span><span class="title"></span><span class="num"></span><div class="bar"><i></i></div></div>
+    <div class="needs" id="needs"><div class="need" id="needF"><span>🍖 飽足</span><div class="nbar"><i></i></div></div><div class="need" id="needW"><span>💧 水分</span><div class="nbar"><i></i></div></div><small id="needWho"></small></div>
     <div class="stage">
       <div class="bubble" id="bubble">汪！</div>
       <div class="abu" id="abu" role="button" tabindex="0" aria-label="摸摸阿布"><img id="abuImg" alt="阿布"></div>
@@ -297,11 +328,12 @@ function Home(){
     <div class="joy" id="joy" aria-live="polite"><span class="joy-dots">${LADDER.map(()=>'<i></i>').join('')}</span><span class="joy-label" id="joyLabel">點阿布的臉摸摸他，越摸越開心</span></div>
     <div class="actions">
       <button class="act" id="aPet"><svg><use href="#i-hand"/></svg>摸摸<small>按住是抓抓</small></button>
-      <button class="act" id="aFeed"><img class="ico" src="img/biscuit/bear.png" alt="">餵餅乾<small>用 1 片 · +5 好感</small></button>
+      <button class="act" id="aFeed"><img class="ico" src="img/biscuit/bear.png" alt="">餵餅乾<small>用 1 片 · 止餓</small></button>
+      <button class="act" id="aDrink"><span class="ico-emoji">💧</span>喝水<small>免費</small></button>
       <button class="act" id="aWalk"><svg><use href="#i-leash"/></svg>去散步<small>+2 好感</small></button>
     </div>
   </section>`);
-  main.appendChild(s); renderLove(); renderLost();
+  main.appendChild(s); renderLove(); renderLost(); renderNeeds();
   const img=$('#abuImg'), abu=$('#abu'), bubble=$('#bubble'), fx=$('#fx'), joy=$('#joy');
   let state='normal', revert=null, idle=null, combo=0, tier=-1, decay=null, lastTap=0, bigParty=0;
   let holdT=null, blissT=null, bliss=false;
@@ -372,7 +404,7 @@ function Home(){
     if(combo>=MELT_AT){                                  // 摸到融化：瞇眼攤平，然後慢慢回來
       combo=LADDER[LADDER.length-1].at; clearTimeout(revert);
       setFace('face_62'); say('被摸到融化了…',true); hearts(10); tone(392,.5,'sine',.1,-120);
-      addLove(3); scheduleDecay(); return;
+      petLove(3); scheduleDecay(); return;
     }
     const nt=tierOf(combo), up=nt>tier; tier=nt; renderJoy();
     const L=LADDER[tier];
@@ -386,13 +418,13 @@ function Home(){
       hearts(L.hearts,x,y);
       if(Math.random()<.35) bark(1); else tone(600+tier*80,.07,'triangle',.1,250);
     }
-    addLove(tier>=3?2:1);
+    petLove(tier>=3?2:1);
     scheduleDecay();
   }
   function party(){
     abu.classList.add('party'); setTimeout(()=>abu.classList.remove('party'),1600);
     hearts(16,undefined,undefined,140); sfx.win();
-    addLove(5); toast('阿布開心到爆炸！好感 +5');
+    petLove(5); toast(needy()? '阿布開心到爆炸！（肚子餓，好感只加一半）' : '阿布開心到爆炸！好感 +5');
   }
   /* 按住 = 摸頭：阿布被摸頭會開飛機耳 */
   function holdStart(){
@@ -402,7 +434,7 @@ function Home(){
       bliss=true; clearTimeout(decay); clearTimeout(revert); showEars(); say('（飛機耳開啟）好舒服…'); renderJoy();
       abu.classList.add('bliss'); petHand.classList.add('on'); let n=0;
       const blissLines=['（飛機耳開啟）好舒服…','再往左邊一點','耳朵後面也要','（頭一直往你手上靠）','不要停～','（整隻融化了）'];
-      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) addLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0){ say(blissLines[(n/6)%blissLines.length|0]); if(EARS.length>1) showEars(); } },450);
+      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) petLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0){ say(blissLines[(n/6)%blissLines.length|0]); if(EARS.length>1) showEars(); } },450);
     },650);
   }
   function holdEnd(){
@@ -421,28 +453,34 @@ function Home(){
     petHand.style.left=px+'%';
     if(lastX!==null){ rubDist+=Math.hypot(e.clientX-lastX,e.clientY-lastY); }
     lastX=e.clientX; lastY=e.clientY;
-    if(rubDist>90){ rubDist=0; hearts(1,e.clientX-fx.getBoundingClientRect().left,r.top-fx.getBoundingClientRect().top+r.height*.2,20); addLove(1); tone(360+Math.random()*60,.12,'sine',.05,-30); }
+    if(rubDist>90){ rubDist=0; hearts(1,e.clientX-fx.getBoundingClientRect().left,r.top-fx.getBoundingClientRect().top+r.height*.2,20); petLove(1); tone(360+Math.random()*60,.12,'sine',.05,-30); }
   });
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>abu.addEventListener(ev,holdEnd));
   abu.addEventListener('contextmenu',e=>e.preventDefault());
   abu.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pet(); } });
   $('#aPet').onclick=()=>pet();
 
-  /* 餵食：短時間吃太多會說吃飽了，不扣餅乾 */
+  /* 餵餅乾：只止餓、不加好感（全家共用的飽足度）；吃飽了就不扣餅乾 */
   $('#aFeed').onclick=()=>{
     ac(); resetIdle(); wake();
-    const now=Date.now(); S.fed=(S.fed||[]).filter(t=>now-t<30*60000);
-    if(S.fed.length>=5){ mood('face_62',1800); say(pick(['吃飽了，肚子圓圓的～','等一下再吃好不好','（打嗝）'])); tone(260,.3,'sine',.08,-60); save(); return; }
+    if(fullNow()>=.95){ mood('face_62',1800); say(pick(['吃飽了，肚子圓圓的～','等一下再吃好不好','（打嗝）'])); tone(260,.3,'sine',.08,-60); return; }
     if(S.bones<1){ say(pick(LINES.noBone)); mood(pick(FACES.look)); sfx.bad(); return; }
-    addBones(-1); S.fed.push(now); save();
-    const fi=Math.floor(Math.random()*3), fl=FLAVORS[fi];
+    addBones(-1);
+    const fl=FLAVORS[Math.floor(Math.random()*3)], wasHungry=hungry();
     clearTimeout(revert); setFace('face_143'); say('餅乾！？');           // 聽到餅乾，耳朵立起來
     const b=h(`<img class="flying-bone" src="${pick(SHAPES)}" alt="">`); fx.appendChild(b); setTimeout(()=>b.remove(),650);
     setTimeout(()=>{
+      careAbu('eat');
       abu.classList.remove('chomp'); void abu.offsetWidth; abu.classList.add('chomp');
-      mood('face_66',1800); say(S.fed.length===4? '再一口就飽了！' : pick([`${fl.n}口味的！咔滋咔滋`,`最喜歡${fl.n}的了！`,...LINES.eat])); sfx.crunch(); hearts(5); addLove(5);
-      if(tier<1){ tier=1; combo=LADDER[1].at; renderJoy(); scheduleDecay(); }
+      mood('face_66',1800); say(fullNow()>=.95? '吃飽了！謝謝！' : wasHungry? '終於有吃的了！咔滋咔滋' : pick([`${fl.n}口味的！咔滋咔滋`,`最喜歡${fl.n}的了！`,...LINES.eat])); sfx.crunch(); hearts(3);
     },450);
+  };
+  /* 喝水：免費，直接補滿 */
+  $('#aDrink').onclick=()=>{
+    ac(); resetIdle(); wake();
+    if(waterNow()>=.9){ mood(pick(FACES.look),1400); say('還不渴喔'); return; }
+    const d=h(`<div class="flying-bone drop">💧</div>`); fx.appendChild(d); setTimeout(()=>d.remove(),650);
+    setTimeout(()=>{ careAbu('drink'); mood('face_60',1600); say(pick(['咕嚕咕嚕～','好好喝！','水好冰涼'])); for(let k=0;k<4;k++) tone(300+k*40,.08,'sine',.08,120,k*.12); },450);
   };
   $('#aWalk').onclick=()=>{
     ac(); resetIdle(); wake(); bark(2);
@@ -469,8 +507,9 @@ function Home(){
     setTimeout(()=>{ addBones(g.gift); toast(g.missed? `阿布把藏起來的 ${g.gift} 片餅乾都給你了` : `阿布叼來今天的 ${g.gift} 片餅乾`,2400); },g.mood==='miss'?2200:700);
   }
   resetIdle();
-  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
-  cleanup=()=>{ clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); };
+  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
+  const needT=setInterval(renderNeeds,30000);
+  cleanup=()=>{ clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
 
 /* ================= 小遊戲清單 ================= */
