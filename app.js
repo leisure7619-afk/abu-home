@@ -1419,8 +1419,8 @@ function Walk(){
     if(o.fuse<1.2){ ctx.strokeStyle='rgba(216,67,50,.35)'; ctx.setLineDash([5,5]); ctx.lineWidth=2; ctx.beginPath(); ctx.arc(o.x,o.y,85,0,7); ctx.stroke(); ctx.setLineDash([]); }
   }
   /* 阿布的背影：從真實照片去背，捲尾巴會搖（預先做好 9 格搖尾巴的圖） */
-  const WALK=new Image(); WALK.src='img/abu_walk.webp';
-  const FW=107, FH=240, NF=9, COLLAR=[76,69], HEADTOP=[90,18];
+  const WALK=new Image(); WALK.src='img/abu_walk.webp'; const LEG=new Image(); LEG.src='img/abu_leg.webp';
+  const FW=107, FH=240, NF=9, COLLAR=[76,69], HEADTOP=[90,18], LW=23, LH=59, LEGL=[42.9,178.4], LEGR=[71.6,174.6];   // 兩隻後腳：照片裡原本的左後腳，右後腳用它左右翻過來
   function drawAbu(){
     const hgt=Math.max(110,Math.min(150,H*.25)), sc=hgt/FH, fw=FW*sc, run=speed/60;
     const wagHz= freezeT>0? 2 : want>.6? 16 : 9, wagAmp= freezeT>0? .25 : want>.6? 1 : .8;
@@ -1433,6 +1433,11 @@ function Walk(){
     ctx.strokeStyle='#B8322A'; ctx.lineWidth=3; ctx.setLineDash([5,3]); ctx.beginPath(); ctx.moveTo(cxp,cyp); taut? ctx.lineTo(W/2,H+10) : ctx.quadraticCurveTo((cxp+W/2)/2,H-10,W/2,H+10); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle='rgba(43,39,35,.18)'; ctx.beginPath(); ctx.ellipse(ax,fy,fw*.45,hgt*.05,0,0,7); ctx.fill();
     ctx.save(); ctx.translate(ax,fy-bob); ctx.rotate(sway);
+    if(LEG.complete&&LEG.naturalWidth){                         // 後腳一前一後踏（畫在身體後面）
+      const lift=freezeT>0? 0 : Math.sin(step)*5*sc*2, ox=-fw/2, oy=-hgt;
+      ctx.drawImage(LEG,ox+LEGL[0]*sc,oy+LEGL[1]*sc-Math.max(0,lift),LW*sc,LH*sc);
+      ctx.save(); ctx.translate(ox+(LEGR[0]+LW)*sc,oy+LEGR[1]*sc-Math.max(0,-lift)); ctx.scale(-1,1); ctx.drawImage(LEG,0,0,LW*sc,LH*sc); ctx.restore();
+    }
     if(WALK.complete&&WALK.naturalWidth) ctx.drawImage(WALK,fr*FW,0,FW,FH,-fw/2,-hgt,fw,hgt);
     ctx.restore();
     const hx=ax-fw/2+HEADTOP[0]*sc, hy=fy-hgt+HEADTOP[1]*sc-bob;
