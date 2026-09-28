@@ -1326,11 +1326,11 @@ function Car(){
 
 /* ================= 小遊戲：陪阿布散步（阿布怕人多、怕鞭炮） =================
  * 左右拖著阿布走。靠近人群、被鞭炮嚇到，阿布「想回家」就越高；越想回家就拉著你走越快、越難閃。
- * 撿草地和餅乾讓他放鬆。想回家滿了，阿布就拖著你衝回家——比誰散步走得最遠，每 20 公尺換 1 片餅乾。 */
+ * 想回家只會累積、不會降；撿草地和餅乾可以多走幾公尺。想回家滿了，阿布就拖著你衝回家——比誰散步走得最遠，每 20 公尺換 1 片餅乾。 */
 function Walk(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('陪阿布散步','wstat'));
   const wrap=h(`<div class="catch-wrap walk-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span><b>放鬆</b> 🌿　<img class="ico" src="img/biscuit/bear.png" alt=""></span><span class="no"><b class="no">閃開</b> 人群　🧨</span></div>`));
+  s.appendChild(h(`<div class="legend"><span><b>撿起來</b> 🌿 +3公尺　<img class="ico" src="img/biscuit/bear.png" alt=""> +8公尺</span><span class="no"><b class="no">閃開</b> 人群　🧨</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d');
   const F={}; ['face_65','face_60','face_143','face_66','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -1340,7 +1340,7 @@ function Walk(){
   const SHIRT=['#E0715A','#7FB3D5','#8DBF7A','#F2C230','#B8A6D9','#EE8597','#FFFDF7','#5C7A9C'], PANTS=['#3E4A5C','#5C6B7A','#8A6242','#2B2723','#6B8FB3'];
   const CHAT=['哈哈哈','欸你看','…','好吵','！','在拍照','排隊中'];
   let W=0,H=0,dpr=1, x=0, tx=0, want=0, freezeT=0, bumpCD=0, walked=0, speed=0, t=0, last=0, raf=0, phase='intro', things=[], spawnT=0, blasts=[], boltT=0, shake=0;
-  let faceK='face_65', say='', sayT=0, lastM=0, bump=0;
+  let faceK='face_65', say='', sayT=0, lastM=0, bump=0, pops=[];
   function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); if(!x) x=tx=W/2; }
   size(); const ro=new ResizeObserver(size); ro.observe(wrap);
   const ay=()=>H*.7, ar=()=>Math.max(22,Math.min(30,W*.075));
@@ -1474,7 +1474,7 @@ function Walk(){
         x+=(tx-x)*Math.min(1,dt*8);
         let near=0, touch=false;
         things.forEach(o=>{ o.y+=speed*dt; o.x+=(o.vx||0)*dt; if(o.m) o.m.forEach(p=>{ const d=Math.hypot(o.x+p.dx-x,o.y+p.dy-ay()); if(d<R) near+=(1-d/R); if(d<ar()+8) touch=true; }); });
-        want= near>0? Math.min(1,want+near*.16*dt) : Math.max(0,want-.04*dt);
+        if(near>0) want=Math.min(1,want+near*.16*dt);                // 想回家只會越來越高，不會降
         want=Math.min(1,want+.006*dt);                               // 走久了本來就會慢慢想回家
         if(touch&&!bumpCD){ freezeT=1; bumpCD=1.8; want=Math.min(1,want+.1); bump=1; talk(pick(['（嚇到定住）','不要碰我！','人好多…']),1.1); sfx.bad(); }
         for(let i=things.length-1;i>=0;i--){
@@ -1484,7 +1484,7 @@ function Walk(){
             if(Math.hypot(o.x-x,o.y-ay())<85){ want=Math.min(1,want+.3); freezeT=.8; bump=1; talk('砰！！我要回家！',1.4); if(navigator.vibrate) try{navigator.vibrate(120)}catch(e){} }
             continue; } }
           if((o.k==='grass'||o.k==='bis')&&Math.hypot(o.x-x,o.y-ay())<ar()+16){
-            things.splice(i,1); want=Math.max(0,want-(o.k==='bis'?.16:.08)); sfx.good(); faceK='face_60'; talk(o.k==='bis'?'餅乾！放鬆了':'草地好香',1); continue;
+            things.splice(i,1); const add=o.k==='bis'?8:3; walked+=add*PX_M; pops.push({txt:`+${add} 公尺`,v:1,y:0}); sfx.good(); faceK='face_60'; talk(o.k==='bis'?'餅乾！':'草地好香',1); continue;
           }
           if(o.y>H+80||o.x<-60||o.x>W+60) things.splice(i,1);
         }
@@ -1519,6 +1519,7 @@ function Walk(){
     ctx.restore();
     if(sayT>0){ sayT-=dt; ctx.font='15px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, bx=Math.max(8,Math.min(W-tw-8,a.ax-tw/2)), by=a.y-a.r-44;
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,30,12): ctx.rect(bx,by,tw,30); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,bx+10,by+15); }
+    pops=pops.filter(p=>{ p.y+=40*(1/60); p.v-=1/60*.9; ctx.globalAlpha=Math.max(0,p.v); ctx.font='bold 18px "Huninn",sans-serif'; ctx.fillStyle='#3E6B25'; ctx.textAlign='center'; ctx.fillText(p.txt,a.ax+46,a.y-20-p.y); ctx.globalAlpha=1; return p.v>0; });
     if(phase!=='intro') hud();
     if(phase!=='over') raf=requestAnimationFrame(frame);
   }
