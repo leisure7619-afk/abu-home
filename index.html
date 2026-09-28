@@ -472,6 +472,9 @@
   /* ---------- 摸頭的手 ---------- */
   .pet-hand{position:absolute;left:56%;top:2%;width:36%;transform:translateX(-50%);opacity:0;pointer-events:none;z-index:5;transition:opacity .25s,left .12s linear}
   .pet-hand.on{opacity:1}
+  .earpic{position:absolute;inset:9px;border-radius:50%;border:5px solid var(--paper);box-sizing:border-box;background:var(--paper) no-repeat;opacity:0;transition:opacity .45s;pointer-events:none;z-index:2}
+  .earpic.on{opacity:1}
+  .abu.bliss .earpic{animation:lean .75s ease-in-out infinite alternate}
   .pet-hand svg{display:block;width:100%;height:auto;aspect-ratio:64/84;transform-origin:50% 10%;animation:stroke .75s ease-in-out infinite alternate;filter:drop-shadow(0 4px 2px rgba(43,39,35,.18))}
   @keyframes stroke{0%{transform:translate(-16%,0) rotate(9deg)}50%{transform:translate(0,9%) rotate(0deg) scaleY(.94)}100%{transform:translate(16%,0) rotate(-9deg)}}
   .abu.bliss img{animation:lean .75s ease-in-out infinite alternate}

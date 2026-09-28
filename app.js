@@ -37,6 +37,30 @@ document.addEventListener('error',e=>{
   t.dataset.fb='1'; t.src=`https://drive.google.com/thumbnail?id=${t.dataset.fid}&sz=w${t.dataset.w}`;
 },true);
 
+/* 飛機耳照片：AI 從雲端的照片裡找出阿布開飛機耳的，記下頭的位置；摸頭時裁出頭部輪流出現 */
+const EARS_LOCAL={src:'img/face_ears.jpg',size:'100% 100%',pos:'50% 50%'};
+let EARS=[EARS_LOCAL], earsKey='';
+function earCrop(b,W,H){
+  if(!W||!H) return null;
+  const x0=b[1]/1000*W, x1=b[3]/1000*W, y0=b[0]/1000*H, y1=b[2]/1000*H;
+  if(Math.max(x1-x0,y1-y0)<Math.min(W,H)*.18) return null;   // 頭太小（拍得太遠），放大會糊，不用
+  const S=Math.min(Math.max(x1-x0,y1-y0)*1.35,W,H);          // 正方形，頭加一圈留白，耳朵才不會被圓框切掉
+  const L=Math.max(0,Math.min(W-S,(x0+x1)/2-S/2)), T=Math.max(0,Math.min(H-S,(y0+y1)/2-S/2));
+  return { size:`${W/S*100}% ${H/S*100}%`, pos:`${W>S+1? L/(W-S)*100:50}% ${H>S+1? T/(H-S)*100:50}%` };
+}
+function loadEars(){
+  const list=PH.filter(p=>Array.isArray(p.ears)&&p.ears.length===4);
+  const key=list.map(p=>p.id).join();
+  if(key===earsKey) return; earsKey=key;
+  const got=[EARS_LOCAL]; EARS=got;
+  list.sort(()=>Math.random()-.5).slice(0,12).forEach(p=>{     // 每次隨機挑 12 張先載好，摸的時候才不會等
+    const im=new Image();
+    im.onload=()=>{ const c=earCrop(p.ears,im.naturalWidth,im.naturalHeight); if(c) got.push(Object.assign({src:im.src},c)); };
+    im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; } };
+    im.src=purl(p,800);
+  });
+}
+
 /* ---------------- 存檔 ---------------- */
 const KEY='abu-home-v2';
 let S = { bones:3, love:0, unlocked:[], seen:[], sound:true, best:{}, me:'' };
@@ -76,6 +100,7 @@ async function loadPhotos(fresh){
     PH=uniq(j.photos||[]).map(normCat); CONFIG=Object.assign({lostLink:'',lostNote:'',birthday:'',meals:'',bathDays:''},j.config||{}); PH_STATE='ok';
     if(j.feeds){ FEEDS=j.feeds; lsSet('abu-feeds',FEEDS); }
     lsSet('abu-photos',{photos:PH,config:CONFIG});
+    loadEars();
   }catch(e){
     PH_STATE = PH.length? 'cached':'fail';
     if(!PH.length) toast('連不上雲端相簿，先用內建照片');
@@ -261,7 +286,17 @@ function Home(){
   const say=(t,big)=>{ bubble.textContent=t; bubble.classList.remove('pop','big'); void bubble.offsetWidth; bubble.classList.add(big?'big':'pop'); setTimeout(()=>bubble.classList.remove('pop'),250); };
   const zzz=h('<div class="zzz" aria-hidden="true">Z z z</div>');
   const petHand=h('<div class="pet-hand" aria-hidden="true"><svg viewBox="0 0 64 84"><use href="#i-pethand"/></svg></div>');
-  abu.appendChild(petHand);
+  const earA=h('<div class="earpic" aria-hidden="true"></div>'), earB=h('<div class="earpic" aria-hidden="true"></div>');
+  abu.appendChild(earA); abu.appendChild(earB); abu.appendChild(petHand);
+  loadEars();
+  let earI=Math.floor(Math.random()*9);
+  /* 摸頭時換下一張飛機耳照片（兩層交叉淡入，不會閃） */
+  function showEars(){
+    const e=EARS[earI++%EARS.length], lay=earA.classList.contains('on')? earB: earA, other=lay===earA? earB: earA;
+    lay.style.backgroundImage=`url("${e.src}")`; lay.style.backgroundSize=e.size; lay.style.backgroundPosition=e.pos;
+    lay.classList.add('on'); other.classList.remove('on');
+  }
+  const hideEars=()=>{ earA.classList.remove('on'); earB.classList.remove('on'); };
   let rubDist=0, lastX=null, lastY=null;
   const hat=h(`<svg class="hat" aria-hidden="true"><use href="#i-hat"/></svg>`);
   const resetIdle=()=>{ clearTimeout(idle); idle=setTimeout(sleep,20000); };
@@ -271,7 +306,7 @@ function Home(){
     joy.querySelectorAll('.joy-dots i').forEach((d,i)=>d.classList.toggle('on',i<=tier));
     joy.classList.toggle('max',tier===LADDER.length-1);
     abu.dataset.tier=tier;
-    $('#joyLabel').textContent = bliss? '瞇眼享受中…' : tier<0? '點阿布的臉摸摸他，越摸越開心' : `開心度：${LADDER[tier].label}`;
+    $('#joyLabel').textContent = bliss? '飛機耳開啟中…' : tier<0? '點阿布的臉摸摸他，越摸越開心' : `開心度：${LADDER[tier].label}`;
   }
   function sleep(){ if(bliss) return; state='sleep'; combo=0; tier=-1; renderJoy(); setFace(FACES.sleep); say('呼…呼…'); abu.appendChild(zzz); }
   function wake(){
@@ -335,15 +370,15 @@ function Home(){
     hearts(16,undefined,undefined,140); sfx.win();
     addLove(5); toast('阿布開心到爆炸！好感 +5');
   }
-  /* 按住 = 抓抓：瞇眼享受 */
+  /* 按住 = 摸頭：阿布被摸頭會開飛機耳 */
   function holdStart(){
     clearTimeout(holdT);
     holdT=setTimeout(()=>{
       if(state==='sleep') return;
-      bliss=true; clearTimeout(decay); clearTimeout(revert); setFace('face_62'); say('（瞇眼）好舒服…'); renderJoy();
+      bliss=true; clearTimeout(decay); clearTimeout(revert); showEars(); say('（飛機耳開啟）好舒服…'); renderJoy();
       abu.classList.add('bliss'); petHand.classList.add('on'); let n=0;
-      const blissLines=['（瞇眼）好舒服…','再往左邊一點','耳朵後面也要','（頭一直往你手上靠）','不要停～','（整隻融化了）'];
-      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) addLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0) say(blissLines[(n/6)%blissLines.length|0]); },450);
+      const blissLines=['（飛機耳開啟）好舒服…','再往左邊一點','耳朵後面也要','（頭一直往你手上靠）','不要停～','（整隻融化了）'];
+      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) addLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0){ say(blissLines[(n/6)%blissLines.length|0]); if(EARS.length>1) showEars(); } },450);
     },650);
   }
   function holdEnd(){
@@ -351,7 +386,7 @@ function Home(){
     if(!bliss) return;
     bliss=false; clearInterval(blissT); abu.classList.remove('bliss'); petHand.classList.remove('on'); petHand.style.left=''; lastX=null;
     tier=Math.max(tier,2); combo=Math.max(combo,LADDER[2].at); renderJoy();
-    setFace(pick(LADDER[tier].faces)); say(pick(['再抓一下嘛','好舒服喔','那邊那邊！'])); scheduleDecay();
+    setFace(pick(LADDER[tier].faces)); hideEars(); say(pick(['再抓一下嘛','好舒服喔','那邊那邊！'])); scheduleDecay();
   }
   abu.addEventListener('pointerdown',e=>{ try{ abu.setPointerCapture(e.pointerId); }catch(x){} pet(e); holdStart(); });
   /* 按住時手指移動：手跟著手指在頭上摸來摸去，摸越多越開心 */
