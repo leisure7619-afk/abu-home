@@ -230,6 +230,15 @@ function go(tab,keepScroll){
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{ sfx.pop(); go(b.dataset.tab); });
 
+/* 去散步：只挑散步的照片（AI 寫的回憶裡有散步、公園、草地、牽繩…），不夠就用內建的散步照 */
+const WALK_WORDS=/散步|公園|草地|草皮|河濱|河邊|步道|街|馬路|斑馬線|出門|戶外|牽繩|胸背|溜狗|走路|山|海邊|沙灘/;
+function walkPhotos(){
+  const mine=pool().filter(p=>!isVid(p)&&!p.sample&&isOpen(p)&&WALK_WORDS.test(p.cap||''));
+  if(mine.length>=3) return mine;
+  const all=pool().filter(p=>!isVid(p)&&!p.sample&&WALK_WORDS.test(p.cap||''));
+  if(all.length>=3) return all;                                   // 散步照不管解鎖與否都能在這裡看到
+  return mine.concat(all,SAMPLE.filter(p=>['s41','s49','s53','s69','s126'].includes(p.id)));
+}
 /* ================= 主畫面 ================= */
 function levelInfo(){ const per=40; const lv=Math.floor(S.love/per); return {lv:lv+1,title:LEVELS[Math.min(lv,LEVELS.length-1)],pct:(S.love%per)/per*100,left:per-S.love%per}; }
 function renderLove(){
@@ -437,7 +446,7 @@ function Home(){
   };
   $('#aWalk').onclick=()=>{
     ac(); resetIdle(); wake(); bark(2);
-    const p=pick(openPhotos());
+    const p=pick(walkPhotos());
     addLove(2);
     modal(`<h3>出門散步囉！</h3>${pimg(p,1200,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}${p.cap?`<p>${esc(p.cap)}</p>`:''}<button class="btn" data-close>回家</button>`,()=>{
       tier=Math.max(tier,2); combo=Math.max(combo,LADDER[2].at); renderJoy();
