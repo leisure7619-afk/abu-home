@@ -10,10 +10,9 @@ const SAMPLE = [
   ['69','公園散步'],['86','桌上的雞肉好香（只是看看）'],['121','小木屋前一起乘涼'],['122','小木屋前全員到齊'],
   ['124','有我的份嗎？'],['126','草地上散步'],['142','星星毯子上的阿布'],
 ].map(([n,cap],i)=>({id:'s'+n, cap, by:'', t:i+1, url:'img/sample/'+n+'.jpg', sample:true, cat:(n==='86'||n==='124')?'美食':''}));
-const PACK_COST = 1, PACK_SIZE = 10;   // 1 片餅乾解鎖 10 張照片
+const PASS_COST = 2, PASS_MIN = 10;    // 2 片餅乾：相簿、日常的照片和影片全部看 10 分鐘
 const REEL_COST = 2;                   // 2 片餅乾解鎖一支短片（解鎖後可以一直重看）
 const LEVEL_GIFT = 3;                  // 好感升一級，阿布送 3 片餅乾
-const VIDEO_COST = 2;                  // 2 片餅乾解鎖一支影片
 /* 阿布最愛的餅乾：牛肉、羊肉、雞肉三種口味 */
 const SHAPES = ['strawberry','bear','bone','lion','apple','rabbit','grape','monkey'].map(n=>'img/biscuit/'+n+'.png');
 const FLAVORS = [{n:'牛肉',c:'#9C5A2E'},{n:'羊肉',c:'#BF8543'},{n:'雞肉',c:'#DDB067'}];
@@ -91,7 +90,8 @@ const pool = () => PH.length? PH: SAMPLE;
 const isRecent = p => !p.sample && p.t && Date.now()-p.t < NEW_DAYS*864e5;
 const isVid = p => Array.isArray(p.v);                                   // 影片：p.v = [秒數, 寬, 高]
 const vdur = p => { const d=Math.round((p.v&&p.v[0])||0); return d? `${Math.floor(d/60)}:${String(d%60).padStart(2,'0')}` : ''; };
-const isOpen = p => isVid(p)? S.unlocked.includes(p.id) : (['美食','洗澡','上廁所'].includes(p.cat) || S.unlocked.includes(p.id) || isRecent(p));
+const passOn = () => (S.passLeft||0) > 0;
+const isOpen = p => passOn() || S.unlocked.includes(p.id) || (!isVid(p) && (['美食','洗澡','上廁所'].includes(p.cat) || isRecent(p)));
 const photosOnly = () => pool().filter(p=>!isVid(p));
 const openPhotos = () => { const o=photosOnly().filter(isOpen); return o.length? o: photosOnly().slice(0,FREE_OPEN); };
 function ensureFree(){
@@ -226,6 +226,7 @@ function go(tab,keepScroll){
   main.innerHTML='';
   ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz})[tab]();
   main.scrollTop=keepScroll? y: 0;
+  renderPass();
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{ sfx.pop(); go(b.dataset.tab); });
 
@@ -651,7 +652,7 @@ const albumList = () => [...pool()].filter(p=>!p.cat).sort((a,b)=>((b.taken?1:0)
 function Album(){
   const list=albumList();
   const s=h(`<section class="screen">
-    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">${PACK_COST} 片餅乾解鎖 ${PACK_SIZE} 張，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
+    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">${PASS_COST} 片餅乾看 ${PASS_MIN} 分鐘，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
       <button class="btn sm" id="upBtn"><svg><use href="#i-plus"/></svg>上傳</button></div>
     <div id="reelBox"></div>
     <p class="progress" id="prog"></p>
@@ -663,7 +664,7 @@ function Album(){
   const g=$('#grid');
   const ph=list.filter(p=>!isVid(p)), vs=list.filter(isVid), open=ph.filter(isOpen).length;
   $('#prog').textContent = PH_STATE==='loading'&&!PH.length? '從雲端硬碟讀照片中…'
-    : `已解鎖 ${open} / ${ph.length} 張${vs.length?`、影片 ${vs.filter(isOpen).length} / ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
+    : passOn()? `共 ${ph.length} 張${vs.length?`、影片 ${vs.length} 支`:''}，現在全部都能看` : `已解鎖 ${open} / ${ph.length} 張${vs.length?`、影片 ${vs.filter(isOpen).length} / ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
   const yearOf=p=>p.sample? '' : p.taken? String(new Date(p.taken).getFullYear()) : '?';
   const perYear={}; list.forEach(p=>{ const y=yearOf(p); perYear[y]=(perYear[y]||0)+1; });
   let year=null;
@@ -671,8 +672,8 @@ function Album(){
     const y=yearOf(p);
     if(y && y!==year){ year=y; g.appendChild(h(`<div class="month year">${y==='?'?'拍攝日期不明':y+' 年'}<span>${perYear[y]} 張</span></div>`)); }
     const un=isOpen(p), isNew=un&&!S.seen.includes(p.id)&&(isRecent(p)||S.unlocked.includes(p.id));
-    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||(isVid(p)?'阿布的影片':'阿布的照片')):(isVid(p)?'未解鎖影片':'未解鎖照片')}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock-d"/></svg>${isVid(p)?`${VIDEO_COST} 片餅乾<small>解鎖這支影片</small>`:`${PACK_COST} 片餅乾<small>解鎖 ${PACK_SIZE} 張</small>`}</span>`}${isVid(p)?vbadge(p):''}</button>`);
-    el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): isVid(p)? unlockVideo(p): unlock(p); };
+    const el=h(`<button class="photo${un?'':' locked'}" aria-label="${un?esc(p.cap||(isVid(p)?'阿布的影片':'阿布的照片')):(isVid(p)?'未解鎖影片':'未解鎖照片')}">${pimg(p,400,'alt="" loading="lazy"')}${un?((isNew?'<span class="new">NEW</span>':'')+(p.by?`<span class="who">${esc(p.by)}</span>`:'')):`<span class="lock"><svg><use href="#i-lock-d"/></svg>${PASS_COST} 片餅乾<small>看 ${PASS_MIN} 分鐘</small></span>`}${isVid(p)?vbadge(p):''}</button>`);
+    el.onclick=()=>{ if(el._lp){ el._lp=false; return; } un? view(p): buyPass(p); };
     if(API_URL&&!p.sample) longPress(el,()=>photoMenu(p,()=>go('album',true)));
     g.appendChild(el);
   });
@@ -733,12 +734,27 @@ function longPress(el,fn){
   el.addEventListener('contextmenu',e=>e.preventDefault());
   el.style.userSelect='none'; el.style.webkitUserSelect='none';
 }
-/* 影片：2 片餅乾解鎖一支 */
-function unlockVideo(p){
-  if(S.bones<VIDEO_COST){ sfx.bad(); toast(`看影片要 ${VIDEO_COST} 片餅乾，還差 ${VIDEO_COST-S.bones} 片，去玩小遊戲吧`,2600); return; }
-  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>解鎖這支影片？</h3><p>用 ${VIDEO_COST} 片餅乾${vdur(p)?`（${vdur(p)}）`:''}，解鎖後可以一直重看。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">解鎖</button><button class="btn ghost" data-close>先不要</button></div>`);
-  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-VIDEO_COST); S.unlocked.push(p.id); save(); sfx.win(); bark(1); view(p); };
+/* 看相簿：2 片餅乾看 10 分鐘，期間所有照片、影片都能看（只有待在相簿／日常、螢幕亮著才扣時間） */
+function buyPass(p){
+  if(S.bones<PASS_COST){ sfx.bad(); toast(`還差 ${PASS_COST-S.bones} 片餅乾，去玩小遊戲吧`,2400); return; }
+  const m=modal(`${pimg(p,400,'class="del-thumb" alt=""')}<h3>看 ${PASS_MIN} 分鐘？</h3><p>用 ${PASS_COST} 片餅乾，${PASS_MIN} 分鐘內所有照片和影片都能看。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">開始看</button><button class="btn ghost" data-close>先不要</button></div>`);
+  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-PASS_COST); S.passLeft=(S.passLeft||0)+PASS_MIN*60; save(); sfx.win(); bark(1); renderPass(); view(p); };
 }
+let passEnded=false;
+function renderPass(){
+  const el=$('#passPill'); if(!el) return;
+  const on=passOn()&&(current==='album'||current==='food');
+  el.hidden=!on; if(on){ const t=S.passLeft; el.querySelector('span').textContent=`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; }
+}
+setInterval(()=>{
+  if(passOn()&&!document.hidden&&(current==='album'||current==='food')&&!document.querySelector('.reel-ov')){
+    S.passLeft--; if(S.passLeft<=0){ S.passLeft=0; passEnded=true; } if(S.passLeft%5===0) save(); renderPass();
+  }
+  if(passEnded&&!document.querySelector('.overlay,.reel-ov')){          // 時間到：正在看的讓它看完，關掉之後才蓋回白霧
+    passEnded=false; save(); toast(`${PASS_MIN} 分鐘到了，想再看要 ${PASS_COST} 片餅乾`,2600);
+    if(current==='album'||current==='food') go(current,true);
+  }
+},1000);
 function vbadge(p){ return `<span class="vbadge"><svg><use href="#i-play"/></svg>${vdur(p)}</span>`; }
 /* 影片框：照縮圖的長寬比決定大小（iPhone 直拍的影片是直的） */
 function fitVideo(p,box){
@@ -746,15 +762,6 @@ function fitVideo(p,box){
   set(p.v&&p.v[1]&&p.v[2]? p.v[1]/p.v[2] : 9/16);
   const im=new Image(); im.onload=()=>{ if(im.naturalWidth) set(im.naturalWidth/im.naturalHeight); }; im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w400`; } };
   im.src=purl(p,400);
-}
-/* 1 片餅乾解鎖 10 張：從點的這張開始，照相簿順序往下數 10 張還沒解鎖的 */
-function unlock(p){
-  if(S.bones<PACK_COST){ sfx.bad(); toast(`還差 ${PACK_COST-S.bones} 片餅乾，去玩小遊戲吧`); return; }
-  const locked=albumList().filter(x=>!isOpen(x)&&!isVid(x)), i=Math.max(0,locked.indexOf(p));
-  const pack=[...locked.slice(i),...locked.slice(0,i)].slice(0,PACK_SIZE);
-  if(!pack.includes(p)) pack.unshift(p);
-  const m=modal(`<h3>解鎖 ${pack.length} 張回憶？</h3><p>用 ${PACK_COST} 片餅乾，從這張開始往下解鎖 ${pack.length} 張。你現在有 ${S.bones} 片。</p><div class="row"><button class="btn" id="yes">解鎖</button><button class="btn ghost" data-close>先不要</button></div>`);
-  m.el.querySelector('#yes').onclick=()=>{ m.el.remove(); addBones(-PACK_COST); pack.forEach(x=>{ if(!S.unlocked.includes(x.id)) S.unlocked.push(x.id); }); save(); sfx.win(); bark(1); toast(`解鎖了 ${pack.length} 張！`); view(p); };
 }
 
 /* ================= 上傳 ================= */
@@ -884,11 +891,11 @@ function Food(){
   DIARY_CATS.forEach(c=>{
     const photos=pool().filter(p=>p.cat===c.cat).sort((a,b)=>ptime(b)-ptime(a));
     s.appendChild(h(`<section class="dsec ${c.cls}"><h3><svg><use href="#${c.icon}"/></svg>${c.cat}</h3>
-      <div class="dgrid">${photos.length? photos.map(p=>`<div class="dthumb${isVid(p)&&!isOpen(p)?' locked':''}" data-id="${esc(p.id)}">${pimg(p,300,`alt="${esc(p.cap||c.cat)}" loading="lazy"`)}${isVid(p)? (isOpen(p)? '' : `<span class="veil"><svg><use href="#i-lock-d"/></svg>${VIDEO_COST} 片</span>`)+vbadge(p) : ''}</div>`).join('') : '<p class="meta">還沒有照片</p>'}</div></section>`));
+      <div class="dgrid">${photos.length? photos.map(p=>`<div class="dthumb${isVid(p)&&!isOpen(p)?' locked':''}" data-id="${esc(p.id)}">${pimg(p,300,`alt="${esc(p.cap||c.cat)}" loading="lazy"`)}${isVid(p)? (isOpen(p)? '' : `<span class="veil"><svg><use href="#i-lock-d"/></svg>${PASS_COST} 片</span>`)+vbadge(p) : ''}</div>`).join('') : '<p class="meta">還沒有照片</p>'}</div></section>`));
   });
   main.appendChild(s);
   s.querySelectorAll('.dthumb').forEach(d=>{ const p=pool().find(x=>x.id===d.dataset.id); if(!p) return;
-    if(isVid(p)) d.onclick=()=>{ if(d._lp){ d._lp=false; return; } isOpen(p)? view(p): unlockVideo(p); };   // 影片點一下就播
+    if(isVid(p)) d.onclick=()=>{ if(d._lp){ d._lp=false; return; } isOpen(p)? view(p): buyPass(p); };   // 影片點一下就播
     if(API_URL&&!p.sample) longPress(d,()=>photoMenu(p,()=>go('food',true))); });
 }
 
