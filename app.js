@@ -652,7 +652,7 @@ const albumList = () => [...pool()].filter(p=>!p.cat).sort((a,b)=>((b.taken?1:0)
 function Album(){
   const list=albumList();
   const s=h(`<section class="screen">
-    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">${PASS_COST} 片餅乾看 ${PASS_MIN} 分鐘，最近 ${NEW_DAYS} 天的新照片免費看</p></div>
+    <div class="album-head"><div><h2 id="albumTitle">回憶相簿</h2><p class="sub">上傳照片／影片賺 +1 片餅乾</p></div>
       <button class="btn sm" id="upBtn"><svg><use href="#i-plus"/></svg>上傳</button></div>
     <div id="reelBox"></div>
     <p class="progress" id="prog"></p>
