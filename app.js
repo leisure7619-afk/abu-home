@@ -1608,7 +1608,7 @@ function Walk(){
 function Stairs(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('阿布下樓梯','sstat'));
   const wrap=h(`<div class="catch-wrap stairs-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span>按住畫面左邊、右邊移動</span></div>`));
+  s.appendChild(h(`<div class="legend"><span>手指左右滑，阿布跟著走；按住左邊、右邊也可以</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
   const F={}; ['face_stairs','face_60','face_143','face_66','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -1621,11 +1621,17 @@ function Stairs(){
   const stat=$('#sstat'); stat.textContent='';
   const talk=(txt,k,ms=1)=>{ say=txt; sayT=ms; if(k){ faceK=k; faceT=ms; } };
   /* 按住左半邊往左、右半邊往右 */
+  /* 兩種操作都可以：手指左右滑＝阿布跟著手指移動（最準）；按住不動＝往那一邊一直走 */
   const pts=new Map();
-  const upd=()=>{ let d=0; pts.forEach(x=>{ d+= x<W/2? -1 : 1; }); dir=Math.max(-1,Math.min(1,d)); };
-  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); const r=wrap.getBoundingClientRect(); pts.set(e.pointerId,e.clientX-r.left); try{ wrap.setPointerCapture(e.pointerId); }catch(x){} upd(); });
-  wrap.addEventListener('pointermove',e=>{ if(!pts.has(e.pointerId)) return; const r=wrap.getBoundingClientRect(); pts.set(e.pointerId,e.clientX-r.left); upd(); });
-  ['pointerup','pointercancel','pointerleave'].forEach(ev=>wrap.addEventListener(ev,e=>{ pts.delete(e.pointerId); upd(); }));
+  const upd=()=>{ let d=0; pts.forEach(p=>{ if(!p.drag) d+= p.x<W/2? -1 : 1; }); dir=Math.max(-1,Math.min(1,d)); };
+  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); const r=wrap.getBoundingClientRect(), x=e.clientX-r.left; pts.set(e.pointerId,{x,x0:x,last:x,drag:false}); try{ wrap.setPointerCapture(e.pointerId); }catch(x){} upd(); });
+  wrap.addEventListener('pointermove',e=>{
+    const p=pts.get(e.pointerId); if(!p) return; const r=wrap.getBoundingClientRect(), x=e.clientX-r.left;
+    if(!p.drag&&Math.abs(x-p.x0)>6) p.drag=true;
+    if(p.drag&&phase==='play'){ ax=Math.max(R(),Math.min(W-R(),ax+(x-p.last)*1.4)); }
+    p.last=x; p.x=x; upd();
+  });
+  ['pointerup','pointercancel'].forEach(ev=>wrap.addEventListener(ev,e=>{ pts.delete(e.pointerId); upd(); }));
   const keys={}; const onKey=e=>{ const v=e.type==='keydown'; if(e.key==='ArrowLeft') keys.l=v; if(e.key==='ArrowRight') keys.r=v; };
   window.addEventListener('keydown',onKey); window.addEventListener('keyup',onKey);
   function kindFor(){
@@ -1691,14 +1697,14 @@ function Stairs(){
       plats=plats.filter(p=>p.y>-30&&p.broken<.5);
       const nf=Math.floor(scroll/GAP); if(nf>floors){ floors=nf; if(floors%10===0){ tone(880,.12,'triangle',.1,300); talk(`地下 ${floors} 樓了！`,'face_66',1.1); } }
       const d=dir||(keys.l?-1:0)+(keys.r?1:0), r=R();
-      vx=d*190;
+      vx=d*260;
       if(on){
         if(!plats.includes(on)||on.broken>0.05){ on=null; }
         else{
           ay=on.y-r*1.15; onT+=dt;
           if(on.kind==='convL') vx-=85; if(on.kind==='convR') vx+=85;
           if(on.kind==='box'&&onT>.35&&!on.broken){ on.broken=.01; talk('箱子垮了！','face_143',.8); tone(160,.2,'square',.06,-60); }
-          if(ax<on.x-r*.3||ax>on.x+on.w+r*.3){ on=null; vy=0; }
+          if(ax<on.x-r*.5||ax>on.x+on.w+r*.5){ on=null; vy=0; }
         }
       }
       plats.forEach(p=>{ if(p.broken>0) p.broken+=dt; });
@@ -1707,7 +1713,7 @@ function Stairs(){
         vy=Math.min(520,vy+1000*dt); const prev=ay; ay+=vy*dt;
         for(const p of plats){
           const top=p.y-r*1.15;
-          if(vy>=0&&prev<=top+2&&ay>=top&&ax>p.x-r*.4&&ax<p.x+p.w+r*.4&&!(p.kind==='box'&&p.broken)){
+          if(vy>=0&&prev<=top+3&&ay>=top&&ax>p.x-r*.6&&ax<p.x+p.w+r*.6&&!(p.kind==='box'&&p.broken)){
             ay=top; vy=0; on=p; onT=0;
             if(p.kind==='spike'){ hurt(4,'好痛！'); }
             else if(p.kind==='spring'){ on=null; vy=-480; talk('咻～','face_66',.7); tone(420,.15,'sine',.1,500); }
@@ -1750,7 +1756,7 @@ function Stairs(){
     winDialog({title:`下到地下 ${floors} 樓`, text:`${nb?'新紀錄！':`最高 地下 ${best} 樓`}<br>每 5 樓換 1 片餅乾。`, bones, faceKey:'face_stairs', again:()=>go('stairs'), rank:{game:'stairs',score:floors}});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_stairs')}" alt=""><h3>阿布下樓梯</h3><p>按住左邊、右邊移動。<br>別被天花板刺到，也別掉下去！</p><button class="btn" id="go">開始</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_stairs')}" alt=""><h3>阿布下樓梯</h3><p>手指左右滑，阿布跟著走。<br>別被天花板刺到，也別掉下去！</p><button class="btn" id="go">開始</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); reset(); phase='play'; last=performance.now(); talk('我下樓囉！','face_66',1); };
   }
   reset(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
