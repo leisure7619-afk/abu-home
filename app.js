@@ -1121,7 +1121,7 @@ function Car(){
   function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); if(!carY) carY=laneY(lane); }
   const roadTop=()=>H*.42, laneH=()=>(H-18-roadTop())/3, laneY=i=>roadTop()+laneH()*(i+.5);
   size(); const ro=new ResizeObserver(size); ro.observe(wrap);
-  const stat=$('#carstat'); const upd=()=>{ stat.textContent= phase==='tug'? '拉阿布下車！' : `在車上 ${Math.floor(ride)} 秒`; }; upd();
+  const stat=$('#carstat'); const upd=()=>{ stat.textContent= phase==='tug'? '拉阿布下車！' : ''; }; upd();
   const talk=(txt,k,ms=1.2)=>{ say=txt; sayT=ms; if(k){ faceK=k; faceT=ms; } };
   const pop=(txt,col)=>pops.push({txt,col,y:0,v:1});
 
@@ -1289,6 +1289,15 @@ function Car(){
       const full=Math.max(START,left); ctx.fillStyle='rgba(43,39,35,.12)'; ctx.fillRect(12,12,W-24,8); ctx.fillStyle= left<5?'#C8452F':'#D9772B'; ctx.fillRect(12,12,(W-24)*Math.min(1,left/full),8);
       ctx.fillStyle='#2B2723'; ctx.font='bold 13px "Huninn",sans-serif'; ctx.textAlign='right'; ctx.fillText(`剩 ${Math.ceil(left)} 秒`,W-14,34);
     }
+    if(phase!=='intro'&&phase!=='tug'){                              // 大大的「在車上 X 秒」，每過一秒跳一下
+      const sec=Math.floor(ride), since=ride-sec, pz=phase==='drive'? 1+.18*Math.max(0,1-since*5) : 1, best=S.best.carTime||0;
+      ctx.save(); ctx.translate(W/2,H*.16); ctx.scale(pz,pz); ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='bold 13px "Huninn",sans-serif'; ctx.fillStyle='#2B2723'; ctx.fillText('阿布在車上',0,-30);
+      ctx.font='bold 46px "Huninn",sans-serif'; ctx.lineWidth=6; ctx.strokeStyle='#2B2723'; ctx.lineJoin='round';
+      ctx.strokeText(`${sec} 秒`,0,4); ctx.fillStyle= best&&sec>best? '#F2C230' : '#FFFDF7'; ctx.fillText(`${sec} 秒`,0,4);
+      if(best){ ctx.font='12px "Huninn",sans-serif'; ctx.fillStyle='#2B2723'; ctx.fillText(sec>best? '新紀錄！' : `最高 ${best} 秒`,0,34); }
+      ctx.restore();
+    }
     if(phase==='tug'){                                                // 拉下車：條子拉滿就成功
       const bw=W-48, bx=24, by=H*.2;
       ctx.fillStyle='rgba(255,253,247,.88)'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(12,by-40,W-24,94,16): ctx.rect(12,by-40,W-24,94); ctx.fill();
@@ -1308,7 +1317,7 @@ function Car(){
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
-    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道。吃到 💨 🐕 🍗 加時間，撞到對向的汽車、機車、腳踏車扣時間，會越開越快。<br>時間用完就到目的地，連打畫面把阿布拉下車，成功再 +${BONUS} 秒！</p><button class="btn" id="go">出發！</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點上、下換車道，閃開來車。<br>到了連打，把阿布拉下車！</p><button class="btn" id="go">出發！</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_66',1.2); raf=requestAnimationFrame(frame); };
   }
   setTimeout(intro,50);
@@ -1484,7 +1493,7 @@ function Walk(){
     winDialog({title: ok?'到草地了！':'今天先回家', text:`${text}（${total} 分）`, bones, faceKey: ok?'face_66':'face_62', again:()=>go('walk')});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>手指左右拖，帶阿布繞開人群，走到安靜的草地。<br>太靠近人群阿布會緊張，緊張到頂就定住不動——按住畫面摸摸他，放鬆了就能繼續走。</p><button class="btn" id="go">出門散步</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>左右拖，帶阿布繞開人群。<br>定住了就按住摸摸他。</p><button class="btn" id="go">出門散步</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); phase='walk'; t=0; talk('慢慢走就好',1.4); };
   }
   last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
