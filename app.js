@@ -473,7 +473,7 @@ function Games(){
     <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>點兩塊交換位置，拼回原來的照片</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="bowl"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>幫阿布裝飯</b><span>按住倒飼料，倒到剛剛好的份量</span></div><span class="reward">+3~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="quiz"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>阿布能不能吃？</b><span>葡萄可以嗎？地瓜呢？考考你</span></div><span class="reward">+1~6<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~13<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多，帶他繞開人群</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
@@ -1104,36 +1104,35 @@ function Bowl(){
 }
 
 /* ================= 小遊戲：阿布去兜風（最愛坐車，最不愛下車） =================
- * 兜風 35 秒：點車子上方／下方換車道，吃到風、狗朋友、香香的東西加分，閃開施工和坑洞。
- * 到目的地：阿布賴在車上不肯下車——連打畫面把他拉下車，成功多送餅乾；拉不動就只好再繞一圈。 */
+ * 車上時間從 25 秒開始倒數：吃到 💨🐕🍗 加時間，撞到對向來車扣時間，越開越快。
+ * 時間用完就到目的地：連打畫面把阿布拉下車，成功總成績再 +10 秒。成績＝阿布在車上待了幾秒，每 10 秒換 1 片餅乾。 */
 function Car(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('阿布去兜風','carstat'));
   const wrap=h(`<div class="catch-wrap car-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span><b>好開心</b> 💨 +1　🐕 +2　🍗 +3</span><span class="no"><b class="no">閃開</b> 🚧 🕳️</span></div>`));
+  s.appendChild(h(`<div class="legend"><span><b>加時間</b> 💨 +1秒　🐕 +2秒　🍗 +3秒</span><span class="no"><b class="no">閃開對向來車</b> 撞到 −3秒</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d');
   const F={}; ['face_66','face_60','face_143','face_68','face_62','face_65'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
   const GOOD=[['💨',1,['風好舒服～','耳朵要飛起來了','呼～～']],['🐕',2,['那隻狗在看我！','嗨～狗朋友']],['🍗',3,['什麼東西好香！','停車！我要吃那個']]];
-  const BAD=[['🚧','唉唷！施工中'],['🕳️','好顛喔…']];
-  const DRIVE=35, TUG=6, EXTRA=8;
-  let W=0,H=0,dpr=1, lane=1, carY=0, items=[], score=0, lives=3, t=0, last=0, raf=0, phase='intro', speed=0, spawnT=0, dist=0;
-  let pulled=false, faceK='face_65', faceT=0, say='', sayT=0, shake=0, tug=.55, tugT=0, won=false, houseX=0, endAt=0, driveEnd=DRIVE;
+  const CARS=['#E0715A','#F4F1EA','#8DBF7A','#F2C230','#B8A6D9'];
+  const START=25, CRASH=3, TUG=6, BONUS=10;
+  let W=0,H=0,dpr=1, lane=1, carY=0, items=[], left=START, ride=0, t=0, last=0, raf=0, phase='intro', speed=0, spawnT=0, dist=0, hurt=0, pops=[];
+  let pulled=false, faceK='face_65', faceT=0, say='', sayT=0, shake=0, tug=.4, tugT=0, won=false, houseX=0;
   function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); if(!carY) carY=laneY(lane); }
   const roadTop=()=>H*.42, laneH=()=>(H-18-roadTop())/3, laneY=i=>roadTop()+laneH()*(i+.5);
   size(); const ro=new ResizeObserver(size); ro.observe(wrap);
-  const stat=$('#carstat'); const upd=()=>{ stat.textContent= phase==='tug'? '拉阿布下車！' : `${score} 分　${'♥'.repeat(lives)}${'♡'.repeat(3-lives)}`; }; upd();
+  const stat=$('#carstat'); const upd=()=>{ stat.textContent= phase==='tug'? '拉阿布下車！' : `在車上 ${Math.floor(ride)} 秒`; }; upd();
   const talk=(txt,k,ms=1.2)=>{ say=txt; sayT=ms; if(k){ faceK=k; faceT=ms; } };
+  const pop=(txt,col)=>pops.push({txt,col,y:0,v:1});
 
-  /* 換車道：點車子上面往上、點下面往下（也可以滑） */
-  let y0=null;
+  /* 換車道：點車子上面往上、點下面往下；拉下車時連打 */
   wrap.addEventListener('pointerdown',e=>{
     e.preventDefault(); ac();
     if(phase==='tug'){ tug=Math.min(1,tug+.07); if(tug>=1) pulled=true; shake=.12; if(Math.random()<.3) tone(500+Math.random()*200,.05,'triangle',.08,120); return; }
-    if(phase!=='drive'&&phase!=='extra') return;
-    const r=wrap.getBoundingClientRect(); y0=e.clientY;
-    const y=e.clientY-r.top; lane=Math.max(0,Math.min(2,lane+(y<carY?-1:1))); sfx.flip();
+    if(phase!=='drive') return;
+    const r=wrap.getBoundingClientRect(); const y=e.clientY-r.top; lane=Math.max(0,Math.min(2,lane+(y<carY?-1:1))); sfx.flip();
   });
-  const onKey=e=>{ if(phase!=='drive'&&phase!=='extra') return; if(e.key==='ArrowUp'){ lane=Math.max(0,lane-1); } if(e.key==='ArrowDown'){ lane=Math.min(2,lane+1); } };
+  const onKey=e=>{ if(phase!=='drive') return; if(e.key==='ArrowUp') lane=Math.max(0,lane-1); if(e.key==='ArrowDown') lane=Math.min(2,lane+1); };
   window.addEventListener('keydown',onKey);
 
   /* 背景：遠山、樹和房子（兩層視差），路面車道線 */
@@ -1163,7 +1162,7 @@ function Car(){
   }
   /* 車子（側面、往右開），阿布從後車窗探出頭，風吹得臉晃來晃去 */
   function drawCar(dt){
-    const L=laneH(), cw=Math.min(W*.38,L*2.3), ch=L*.62, x=W*.32, y=carY+ (phase==='tug'? (Math.random()-.5)*shake*30 : Math.sin(t*14)*speed*.004);
+    const L=laneH(), cw=Math.min(W*.38,L*2.3), ch=L*.62, x=W*.32, y=carY+ (shake>0? (Math.random()-.5)*shake*30 : Math.sin(t*14)*speed*.004);
     ctx.save(); ctx.translate(x,y);
     ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0,ch*.55,cw*.52,6,0,0,7); ctx.fill();
     ctx.fillStyle='#7FB3D5'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=3;
@@ -1185,78 +1184,96 @@ function Car(){
     ctx.fillStyle='#FFFDF7'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,30,12): ctx.rect(bx,by,tw,30); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#2B2723'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(txt,bx+10,by+15);
   }
+  /* 對向來車：車頭朝左，開過來 */
+  function drawOncoming(o){
+    const L=laneH(), cw=Math.min(W*.3,L*1.9), ch=L*.55, x=o.x, y=laneY(o.lane);
+    ctx.save(); ctx.translate(x,y);
+    ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0,ch*.55,cw*.5,5,0,0,7); ctx.fill();
+    ctx.fillStyle=o.c; ctx.strokeStyle='#2B2723'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.roundRect? ctx.roundRect(-cw/2,-ch*.15,cw,ch*.6,10): ctx.rect(-cw/2,-ch*.15,cw,ch*.6); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cw*.36,-ch*.15); ctx.lineTo(cw*.26,-ch*.62); ctx.lineTo(-cw*.16,-ch*.62); ctx.lineTo(-cw*.32,-ch*.15); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#E3F1F8'; ctx.beginPath(); ctx.moveTo(cw*.02,-ch*.2); ctx.lineTo(cw*.02,-ch*.55); ctx.lineTo(-cw*.14,-ch*.55); ctx.lineTo(-cw*.26,-ch*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#FFF3B0'; ctx.fillRect(-cw*.48,-ch*.05,cw*.08,ch*.12);
+    ctx.fillStyle='rgba(255,243,176,.35)'; ctx.beginPath(); ctx.moveTo(-cw*.48,0); ctx.lineTo(-cw*.48-40,-14); ctx.lineTo(-cw*.48-40,14); ctx.fill();   // 車燈光
+    [-cw*.3,cw*.3].forEach(wx=>{ ctx.save(); ctx.translate(wx,ch*.45); ctx.rotate(-dist/16); ctx.fillStyle='#2B2723'; ctx.beginPath(); ctx.arc(0,0,ch*.22,0,7); ctx.fill(); ctx.strokeStyle='#C9C4BC'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-ch*.12,0); ctx.lineTo(ch*.12,0); ctx.stroke(); ctx.restore(); });
+    ctx.restore();
+  }
   function spawn(){
-    const bad=Math.random()<Math.min(.36,.2+t/150), it=bad? pick(BAD): pick(GOOD);
     const ln=Math.floor(Math.random()*3);
-    if(items.some(o=>o.x>W-40&&o.lane===ln)) return;
-    items.push({x:W+30,lane:ln,bad,e:it[0],val:bad?0:it[1],line:bad?it[1]:pick(it[2]),bob:Math.random()*6});
+    if(items.some(o=>o.x>W-60&&o.lane===ln)) return;
+    if(Math.random()<Math.min(.55,.36+t/150)){                      // 對向來車越來越多
+      const free=[0,1,2].filter(k=>!items.some(o=>o.car&&o.x>W-120&&o.lane===k));
+      if(free.length<2) return;                                       // 一定留一條路可以閃
+      items.push({car:true,x:W+80,lane:ln,c:pick(CARS),v:110+Math.random()*60});
+    }else{ const it=pick(GOOD); items.push({x:W+30,lane:ln,e:it[0],val:it[1],line:pick(it[2]),bob:Math.random()*6}); }
   }
   function frame(ts){
     const dt=Math.min(.05,(ts-last)/1000||0); last=ts; t+=dt;
-    if(phase==='drive'||phase==='extra'){
-      const el=phase==='drive'? t : t-endAt;
-      const goal=phase==='drive'? 170+el*4 : 230;
+    if(phase==='drive'){
+      ride+=dt; left-=dt; hurt=Math.max(0,hurt-dt); shake=Math.max(0,shake-dt);
+      const goal=170+t*6;                                             // 越開越快
       speed+=(goal-speed)*Math.min(1,dt*2);
-      spawnT-=dt; if(spawnT<=0){ spawn(); spawnT=Math.max(.55,1.1-t*.014); }
-      if(phase==='drive'&&t>DRIVE-4&&t-dt<=DRIVE-4) talk('快到了…我還不想下車','face_143',2);
-      if(phase==='drive'&&t>=DRIVE){ phase='arrive'; items=[]; houseX=W+40; }
-      if(phase==='extra'&&t>=endAt+EXTRA){ phase='done'; finish(); }
+      spawnT-=dt; if(spawnT<=0){ spawn(); spawnT=Math.max(.36,1-t*.012); }
+      if(left<=3&&left+dt>3) talk('快到了…我還不想下車','face_143',2);
+      if(left<=0){ left=0; phase='arrive'; items=items.filter(o=>!o.car); houseX=W+40; }
+      upd();
     }else if(phase==='arrive'){
-      speed=Math.max(0,speed-120*dt); houseX-=speed*dt;
+      speed=Math.max(0,speed-140*dt); houseX-=speed*dt;
       const stopX=W*.32-55; if(houseX<stopX){ houseX=stopX; speed=0; }
-      if(speed===0){ phase='tug'; tugT=0; tug=.4; upd(); talk('我不要下車！','face_143',TUG); bark(2); }
+      if(speed===0){ phase='tug'; tugT=0; tug=.4; items=[]; upd(); talk('我不要下車！','face_143',TUG); bark(2); }
     }else if(phase==='tug'){
       tugT+=dt; tug=Math.max(0,tug-(.12+.12*tugT/TUG)*dt); shake=Math.max(0,shake-dt);   // 阿布一直往車裡縮
       if(pulled||tugT>=TUG){
-        won=pulled; upd();
-        if(won){ phase='done'; sfx.win(); bark(2); talk('哼…好啦，下車就下車','face_62',2.5); setTimeout(finish,1500); }
-        else { phase='extra'; sfx.bad(); bark(3); talk('拉不動！只好再繞一圈～','face_66',2.5); endAt=t; houseX=0; }
+        won=pulled; phase='done'; upd();
+        if(won){ sfx.win(); bark(2); talk('哼…好啦，下車就下車','face_62',2.5); pop(`+${BONUS} 秒`,'#3E6B25'); }
+        else { sfx.bad(); talk('拉不動！我就是不下車','face_66',2.5); }
+        setTimeout(finish,1600);
       }
     }
     dist+=speed*dt;
     carY+=(laneY(lane)-carY)*Math.min(1,dt*12);
     ctx.clearRect(0,0,W,H); drawWorld(dt); drawHouse();
     ctx.font='30px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const cx=W*.32, half=Math.min(W*.38,laneH()*2.3)/2;
     for(let i=items.length-1;i>=0;i--){
-      const it=items[i]; it.x-=speed*dt*1.15;
-      ctx.fillText(it.e,it.x,laneY(it.lane)+Math.sin(t*4+it.bob)*3);
-      const cx=W*.32, half=Math.min(W*.38,laneH()*2.3)/2;
-      if(it.lane===lane&&it.x>cx-half&&it.x<cx+half){
-        items.splice(i,1);
-        if(it.bad){ lives=Math.max(0,lives-1); sfx.bad(); shake=.4; talk(it.line,'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){} }
-        else{ score+=it.val; sfx.good(); talk(it.line,it.val>=3?'face_68':'face_60',1); }
-        upd();
-        if(lives<=0&&phase==='drive'){ phase='arrive'; items=[]; houseX=W+40; talk('好啦，直接去目的地…','face_62',2); }
-      }else if(it.x<-40) items.splice(i,1);
+      const it=items[i]; it.x-=(speed+(it.car?it.v:0))*dt*1.1;
+      if(it.car) drawOncoming(it); else ctx.fillText(it.e,it.x,laneY(it.lane)+Math.sin(t*4+it.bob)*3);
+      const reach=it.car? half+Math.min(W*.3,laneH()*1.9)*.4 : half;
+      if(phase==='drive'&&it.lane===lane&&Math.abs(it.x-cx)<reach){
+        if(it.car){ if(hurt>0) continue; items.splice(i,1); left=Math.max(0,left-CRASH); hurt=.9; shake=.4; sfx.bad(); pop(`−${CRASH} 秒`,'#C8452F'); talk(pick(['嚇死我了！','好險…','叭叭！']),'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(70)}catch(e){} }
+        else { items.splice(i,1); left+=it.val; sfx.good(); pop(`+${it.val} 秒`,'#3E6B25'); talk(it.line,it.val>=3?'face_68':'face_60',1); }
+        ctx.font='30px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      }else if(it.x<-120) items.splice(i,1);
     }
     const c=drawCar(dt);
-    if(faceT>0){ faceT-=dt; if(faceT<=0&&phase!=='tug') faceK= speed>200? 'face_66':'face_65'; }
+    if(hurt>0&&Math.floor(hurt*10)%2===0){ ctx.fillStyle='rgba(200,69,47,.12)'; ctx.fillRect(0,0,W,H); }
+    if(faceT>0){ faceT-=dt; if(faceT<=0&&phase==='drive') faceK= speed>240? 'face_66':'face_65'; }
     if(sayT>0){ sayT-=dt; bubble(say,c.hx+c.r*.4,c.hy-c.r); }
-    if(phase==='drive'||phase==='extra'){                                                          // 時間條
-      const left= phase==='drive'? Math.max(0,1-t/DRIVE) : Math.max(0,1-(t-endAt)/EXTRA);
-      ctx.fillStyle='rgba(43,39,35,.12)'; ctx.fillRect(12,12,W-24,8); ctx.fillStyle= phase==='extra'?'#EE8597':'#D9772B'; ctx.fillRect(12,12,(W-24)*left,8);
+    pops=pops.filter(p=>{ p.y+=40*dt; p.v-=dt*.8; ctx.globalAlpha=Math.max(0,p.v); ctx.font='bold 20px "Huninn",sans-serif'; ctx.fillStyle=p.col; ctx.textAlign='center'; ctx.fillText(p.txt,c.hx+40,c.hy-c.r-20-p.y); ctx.globalAlpha=1; return p.v>0; });
+    if(phase==='drive'){                                              // 剩下的時間
+      const full=Math.max(START,left); ctx.fillStyle='rgba(43,39,35,.12)'; ctx.fillRect(12,12,W-24,8); ctx.fillStyle= left<5?'#C8452F':'#D9772B'; ctx.fillRect(12,12,(W-24)*Math.min(1,left/full),8);
+      ctx.fillStyle='#2B2723'; ctx.font='bold 13px "Huninn",sans-serif'; ctx.textAlign='right'; ctx.fillText(`剩 ${Math.ceil(left)} 秒`,W-14,34);
     }
-    if(phase==='tug'){                                                                             // 拔河條：右邊是阿布、左邊是家人
+    if(phase==='tug'){                                                // 拉下車：條子拉滿就成功
       const bw=W-48, bx=24, by=H*.2;
       ctx.fillStyle='rgba(255,253,247,.88)'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(12,by-40,W-24,94,16): ctx.rect(12,by-40,W-24,94); ctx.fill();
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,bw,22,11): ctx.rect(bx,by,bw,22); ctx.fill(); ctx.stroke();
       ctx.fillStyle= tug>.7? '#F2C230':'#EE8597'; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx+2,by+2,(bw-4)*tug,18,9): ctx.rect(bx+2,by+2,(bw-4)*tug,18); ctx.fill();
-      ctx.strokeStyle='#2B2723'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(bx+bw-2,by-4); ctx.lineTo(bx+bw-2,by+26); ctx.stroke(); ctx.setLineDash([]);
       ctx.font='bold 17px "Huninn",sans-serif'; ctx.fillStyle='#2B2723'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
       ctx.fillText(`連打畫面，把阿布拉下車！ ${Math.max(0,Math.ceil(TUG-tugT))}`,W/2,by-12);
-      ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillText('阿布：不要！',bx,by+40); ctx.textAlign='right'; ctx.fillText('下車囉～',bx+bw,by+40);
+      ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillText('阿布：不要！',bx,by+40); ctx.textAlign='right'; ctx.fillText(`拉下車 +${BONUS} 秒`,bx+bw,by+40);
     }
     if(phase!=='over') raf=requestAnimationFrame(frame);
   }
   function finish(){
     if(phase==='over') return; phase='over'; cancelAnimationFrame(raf);
-    const base=Math.max(1,Math.min(10,Math.floor(score/4))), bones=base+(won?3:0);
-    const best=Math.max(S.best.car||0,score), nb=best>(S.best.car||0); S.best.car=best; save();
-    winDialog({title: won?'成功拉下車！':'多繞了一圈', text:`兜風拿到 ${score} 分${nb?'，新紀錄':`（最高 ${best} 分）`}${won?'。阿布被拉下車，一臉不甘願，多送 3 片餅乾':'。阿布死賴在車上，最後還是多兜了一圈'}`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car')});
+    const total=Math.floor(ride)+(won?BONUS:0), bones=Math.max(1,Math.min(12,Math.floor(total/10)));   // 每 10 秒換 1 片餅乾
+    const best=Math.max(S.best.carTime||0,total), nb=best>(S.best.carTime||0); S.best.carTime=best; save();
+    winDialog({title: won?'成功拉下車！':'阿布死賴在車上', text:`阿布在車上待了 ${Math.floor(ride)} 秒${won?`，拉下車再 +${BONUS} 秒`:''}，總共 ${total} 秒${nb?'，新紀錄！':`（最高 ${best} 秒）`}<br>每 10 秒換 1 片餅乾。`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car')});
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
-    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道，吃到 💨 🐕 🍗 加分，閃開 🚧 🕳️。<br>到目的地時阿布會賴著不下車，連打畫面把他拉下車！</p><button class="btn" id="go">出發！</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>阿布最愛坐車了</h3><p>點車子的上面或下面換車道。吃到 💨 🐕 🍗 加時間，撞到對向來車扣時間，會越開越快。<br>時間用完就到目的地，連打畫面把阿布拉下車，成功再 +${BONUS} 秒！</p><button class="btn" id="go">出發！</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_66',1.2); raf=requestAnimationFrame(frame); };
   }
   setTimeout(intro,50);
