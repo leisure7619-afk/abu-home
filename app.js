@@ -245,11 +245,13 @@ function walkPhotos(){
   return mine.concat(all,SAMPLE.filter(p=>['s41','s49','s53','s69','s126'].includes(p.id)));
 }
 /* 阿布的飢餓、口渴、想尿尿：全家共用（存在雲端），12 小時從飽到餓、8 小時從不渴到很渴、10 小時憋到滿（吃喝會更快） */
-const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3, NEED_PEE=10*3600e3;
+const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3, PEE_SHARE=.7;
 let NEEDS=lsGet('abu-needs')||{f:1,ft:Date.now(),fb:'',w:1,wt:Date.now(),wb:''};
 const fullNow=()=>Math.max(0,Math.min(1,NEEDS.f-(Date.now()-NEEDS.ft)/NEED_EAT));
 const waterNow=()=>Math.max(0,Math.min(1,NEEDS.w-(Date.now()-NEEDS.wt)/NEED_DRINK));
-const peeNow=()=>Math.max(0,Math.min(1,(NEEDS.p||0)+(Date.now()-(NEEDS.pt||Date.now()))/NEED_PEE));
+/* 尿尿＝水分慢慢變少時，70% 轉成尿（水喝完了就不再增加） */
+const waterAt=t=>Math.max(0,NEEDS.w-Math.max(0,t-NEEDS.wt)/NEED_DRINK);
+const peeNow=()=>{ const now=Date.now(), pt=NEEDS.pt||now; return Math.max(0,Math.min(1,(NEEDS.p||0)+PEE_SHARE*(waterAt(pt)-waterAt(now)))); };
 const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, mustPee=()=>peeNow()>=.75, needy=()=>hungry()||thirsty()||mustPee();
 let careBusy=0;
 /* 還有自己按的沒回來時，先別被較舊的雲端資料蓋掉 */
@@ -258,9 +260,8 @@ async function careAbu(kind){                                 // 先在手機上
   const now=Date.now();
   if(kind==='walk'){ NEEDS=Object.assign({},NEEDS,{p:0,pt:now,pb:S.me||''}); }
   else {
-    const p=Math.min(1,peeNow()+(kind==='eat'?.05:.04));
-    if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||'',p,pt:now}); }
-    else { NEEDS=Object.assign({},NEEDS,{w:Math.min(1,waterNow()+.25),wt:now,wb:S.me||'',p,pt:now}); }
+    if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||''}); }
+    else { NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:Math.min(1,waterNow()+.1),wt:now,wb:S.me||''}); }   // 喝一次 +10%
   }
   lsSet('abu-needs',NEEDS); renderNeeds();
   if(API_URL){ careBusy++; let j=null; try{ j=await api({action:kind,by:S.me||''}); }catch(e){} careBusy--; if(j) setNeeds(j.needs); }
