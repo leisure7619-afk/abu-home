@@ -1627,7 +1627,7 @@ function Walk(){
         things.forEach(o=>{ o.y+=speed*dt; o.x+=(o.vx||0)*dt; if(o.m) o.m.forEach(p=>{ const d=Math.hypot(o.x+p.dx-x,o.y+p.dy-ay()); if(d<R) near+=(1-d/R); if(d<ar()+8) touch=true; }); });
         if(near>0) want=Math.min(1,want+near*.16*dt);                // 想回家只會越來越高，不會降
         want=Math.min(1,want+.006*dt);                               // 走久了本來就會慢慢想回家
-        if(touch&&!bumpCD){ freezeT=1; bumpCD=1.8; want=Math.min(1,want+.1); bump=1; talk(pick(['（嚇到定住）','不要碰我！','人好多…']),1.1); sfx.bad(); }
+        if(touch&&!bumpCD){ freezeT=1; bumpCD=1.8; want=Math.min(1,want+.1); bump=1; talk(pick(['社恐發作中','我是社恐布','（嚇到定住）','人好多…','（躲到你腳後面）','（假裝沒看到）']),1.1); sfx.bad(); }
         for(let i=things.length-1;i>=0;i--){
           const o=things[i];
           if(o.k==='boom'){ o.fuse-=dt; if(o.fuse<=0){
