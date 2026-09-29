@@ -225,11 +225,11 @@ function go(tab,keepScroll){
   if(cleanup){ cleanup(); cleanup=null; }
   current=tab;
   if(tab==='games'||tab==='food') backTo=tab;
-  const navTab={memory:backTo,catch:backTo,puzzle:backTo,bowl:backTo,quiz:backTo,car:backTo,walk:backTo,stairs:backTo,seek:backTo,bbq:backTo}[tab]||tab;
+  const navTab={memory:backTo,catch:backTo,puzzle:backTo,bowl:backTo,quiz:backTo,car:backTo,walk:backTo,stairs:backTo,seek:backTo,bbq:backTo,tent:backTo}[tab]||tab;
   document.querySelectorAll('nav button').forEach(b=>b.toggleAttribute('aria-current',false));
   const nb=document.querySelector(`nav button[data-tab="${navTab}"]`); if(nb) nb.setAttribute('aria-current','page');
   main.innerHTML='';
-  ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz,car:Car,walk:Walk,stairs:Stairs,seek:Seek,bbq:Bbq})[tab]();
+  ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz,car:Car,walk:Walk,stairs:Stairs,seek:Seek,bbq:Bbq,tent:Tent})[tab]();
   main.scrollTop=keepScroll? y: 0;
   renderPass();
 }
@@ -573,6 +573,7 @@ function Games(){
     <button class="game-card" data-g="stairs"><img class="thumb" src="img/face_stairs.jpg" alt=""><div><b>阿布下樓梯</b><span>一階一階往下跳，別被天花板刺到</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="seek"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>手電筒找阿布</b><span>露營的晚上阿布躲起來了，拿手電筒找</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="bbq"><img class="thumb" src="img/face_68.jpg" alt=""><div><b>營火烤肉</b><span>翻面烤熟，能吃的才分給阿布</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="tent"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>搭帳篷</b><span>快點搭好，阿布會一直來搗蛋</span></div><span class="reward">+2~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
   main.appendChild(s);
@@ -592,7 +593,7 @@ function winDialog({title,text,bones,faceKey='face_60',again,rank}){
 }
 
 /* ================= 全家排行榜：各玩各的，成績上傳比高低 ================= */
-const GAME_INFO={memory:{n:'回憶翻牌',u:'次',low:1},catch:{n:'阿布接零食',u:'分'},puzzle:{n:'照片拼圖',u:'次',low:1},bowl:{n:'幫阿布裝飯',u:'片'},quiz:{n:'阿布能不能吃',u:'題'},car:{n:'阿布去兜風',u:'秒'},walk:{n:'陪阿布散步',u:'公尺'},stairs:{n:'阿布下樓梯',u:'樓'},seek:{n:'手電筒找阿布',u:'次'},bbq:{n:'營火烤肉',u:'分'}};
+const GAME_INFO={memory:{n:'回憶翻牌',u:'次',low:1},catch:{n:'阿布接零食',u:'分'},puzzle:{n:'照片拼圖',u:'次',low:1},bowl:{n:'幫阿布裝飯',u:'片'},quiz:{n:'阿布能不能吃',u:'題'},car:{n:'阿布去兜風',u:'秒'},walk:{n:'陪阿布散步',u:'公尺'},stairs:{n:'阿布下樓梯',u:'樓'},seek:{n:'手電筒找阿布',u:'次'},bbq:{n:'營火烤肉',u:'分'},tent:{n:'搭帳篷',u:'秒',low:1}};
 let BOARDS=lsGet('abu-boards')||{};
 const fmtScore=(g,v)=>`${v} ${GAME_INFO[g].u}`;
 async function loadBoards(){
@@ -2175,6 +2176,181 @@ function Bbq(){
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); slots.forEach(sl=>sl.it=null); score=0; left=TIME; t=0; spawnT=0; flareT=8; flare=0; lastBeg=0; phase='play'; last=performance.now(); talk('好香喔～','face_68',1.4); };
   }
   last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
+  cleanup=()=>{ phase='done'; cancelAnimationFrame(raf); ro.disconnect(); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
+}
+
+/* ================= 小遊戲：搭帳篷（阿布去露營） =================
+ * 照順序把地墊、內帳、兩根營柱、外帳、四根營釘拖到營地搭好帳篷，越快越好。
+ * 阿布會一直來搗蛋：叼走營釘到處跑（點他才會放下）、躺在地墊上不走（摸 5 下才起來）、咬著帳篷往後拉（快點他，不然剛搭的會被扯掉）。 */
+function Tent(){
+  const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('搭帳篷','tstat'));
+  const wrap=h(`<div class="catch-wrap tent-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
+  s.appendChild(h(`<div class="legend"><span>照順序把東西拖到營地・阿布來搗蛋就點他</span></div>`));
+  main.appendChild(s);
+  const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
+  const F={}; ['face_66','face_60','face_62','face_143','face_65','face_68'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
+  const ORDER=['mat','inner','pole','pole','fly','peg','peg','peg','peg'];
+  const NAME={mat:'地墊',inner:'內帳',pole:'營柱',fly:'外帳',peg:'營釘'};
+  let W=0,H=0,dpr=1, parts=[], placed=[], corners=[], t=0, last=0, raf=0, phase='intro', drag=null, say='', sayT=0, floats=[], shake=0;
+  const dog={st:'away',x:-60,y:0,tx:0,ty:0,wait:5,face:'face_66',carry:null,pets:0,tug:0,dir:1,run:0,way:0};
+  function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  size(); const ro=new ResizeObserver(size); ro.observe(wrap);
+  $('#tstat').textContent='';
+  const SITE=()=>({x:W/2,y:H*.5,w:Math.min(250,W*.66),h:H*.2});
+  const talk=(txt,ms=1.2)=>{ say=txt; sayT=ms; };
+  const float=(txt,x,y,c)=>floats.push({txt,x,y,c,t:0});
+  const next=()=>ORDER[placed.length];
+  const count=k=>placed.filter(p=>p.k===k).length;
+  function setup(){
+    const kinds=['mat','inner','pole','pole','fly','peg','peg','peg','peg'];
+    for(let i=kinds.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [kinds[i],kinds[j]]=[kinds[j],kinds[i]]; }
+    parts=kinds.map((k,i)=>{ const col=i%5, row=Math.floor(i/5); return {k,x:W*(.12+col*.19),y:H*(.8+row*.11)}; });
+    placed=[]; const S=SITE(); corners=[[S.x-S.w/2,S.y+S.h*.45],[S.x+S.w/2,S.y+S.h*.45],[S.x-S.w*.38,S.y+S.h*.72],[S.x+S.w*.38,S.y+S.h*.72]].map(([x,y])=>({x,y,on:false}));
+    Object.assign(dog,{st:'away',x:-60,y:H*.3,tx:-60,ty:H*.3,wait:4,carry:null,pets:0,tug:0,run:0});
+  }
+  /* 東西的樣子 */
+  function drawPart(k,x,y,sc=1){
+    ctx.save(); ctx.translate(x,y); ctx.scale(sc,sc); ctx.lineWidth=2; ctx.strokeStyle=INK;
+    if(k==='mat'){ ctx.fillStyle='#4F7CAC'; rr(ctx,-26,-9,52,18,4); ctx.fill(); ctx.stroke(); ctx.strokeStyle='#BFD9E6'; ctx.beginPath(); ctx.moveTo(-18,-9); ctx.lineTo(-18,9); ctx.moveTo(18,-9); ctx.lineTo(18,9); ctx.stroke(); }
+    else if(k==='inner'){ ctx.fillStyle='#FBEBD6'; rr(ctx,-24,-12,48,24,8); ctx.fill(); ctx.stroke(); ctx.fillStyle='#E3B341'; ctx.fillRect(-24,4,48,4); }
+    else if(k==='pole'){ ctx.strokeStyle=INK; ctx.lineWidth=7; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(-28,8); ctx.lineTo(28,-8); ctx.stroke(); ctx.strokeStyle='#A9B4BE'; ctx.lineWidth=4; ctx.stroke(); }
+    else if(k==='fly'){ ctx.fillStyle='#D9772B'; rr(ctx,-26,-12,52,24,8); ctx.fill(); ctx.stroke(); ctx.fillStyle='#F2C230'; ctx.fillRect(-26,-3,52,5); }
+    else if(k==='peg'){ ctx.strokeStyle=INK; ctx.lineWidth=5; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(0,-14); ctx.lineTo(0,12); ctx.stroke(); ctx.strokeStyle='#C9CED3'; ctx.lineWidth=3; ctx.stroke(); ctx.fillStyle='#E3B341'; ctx.beginPath(); ctx.arc(0,-14,5,0,7); ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=INK; ctx.stroke(); }
+    ctx.restore();
+  }
+  /* 營地上的帳篷：搭到哪一步就畫到哪一步 */
+  function drawTent(){
+    const S=SITE(), gy=S.y+S.h*.45, hw=S.w/2, poles=count('pole'), up= poles===0? .12 : poles===1? .55 : 1;
+    if(!count('mat')){ ctx.setLineDash([8,6]); ctx.strokeStyle='rgba(43,39,35,.45)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(S.x-hw,gy); ctx.lineTo(S.x-hw*.76,S.y+S.h*.72); ctx.lineTo(S.x+hw*.76,S.y+S.h*.72); ctx.lineTo(S.x+hw,gy); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]); }
+    else { ctx.fillStyle='#4F7CAC'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(S.x-hw,gy); ctx.lineTo(S.x-hw*.76,S.y+S.h*.72); ctx.lineTo(S.x+hw*.76,S.y+S.h*.72); ctx.lineTo(S.x+hw,gy); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    const dome=(col,grow,alpha)=>{ const top=gy-S.h*1.5*up*grow; ctx.globalAlpha=alpha; ctx.fillStyle=col; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(S.x-hw*.9*grow,S.y+S.h*.62); ctx.quadraticCurveTo(S.x-hw*.8*grow,top,S.x,top); ctx.quadraticCurveTo(S.x+hw*.8*grow,top,S.x+hw*.9*grow,S.y+S.h*.62); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.globalAlpha=1; return top; };
+    if(count('inner')){ const top=dome('#FBEBD6',.92,1);
+      if(poles>=1){ ctx.strokeStyle='#8C8A86'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(S.x-hw*.83,S.y+S.h*.62); ctx.quadraticCurveTo(S.x,top-10,S.x+hw*.83,S.y+S.h*.62); ctx.stroke(); }
+      if(poles>=2){ ctx.beginPath(); ctx.moveTo(S.x-hw*.6,S.y+S.h*.7); ctx.quadraticCurveTo(S.x,top-6,S.x+hw*.6,S.y+S.h*.7); ctx.stroke(); } }
+    if(count('fly')){ const top=dome('#D9772B',1,1); ctx.fillStyle='rgba(43,39,35,.55)'; ctx.beginPath(); ctx.moveTo(S.x-hw*.22,S.y+S.h*.62); ctx.quadraticCurveTo(S.x,top+S.h*.5,S.x+hw*.22,S.y+S.h*.62); ctx.closePath(); ctx.fill(); ctx.stroke();
+      corners.forEach(c=>{ if(c.on){ ctx.strokeStyle='rgba(43,39,35,.6)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(S.x+(c.x-S.x)*.5,top+S.h*.4); ctx.stroke(); } }); }
+    corners.forEach(c=>{ if(c.on) drawPart('peg',c.x,c.y-6,.8); else if(next()==='peg'){ ctx.strokeStyle='#F2C230'; ctx.lineWidth=2.5; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(c.x,c.y,13,0,7); ctx.stroke(); ctx.setLineDash([]); } });
+  }
+  /* 阿布：身體＋捲尾巴＋真的臉 */
+  function drawDog(){
+    if(dog.st==='away'&&(dog.x<-40||dog.x>W+40)) return;
+    const x=dog.x, y=dog.y, d=dog.dir, lie=dog.st==='lie', bob=dog.run? Math.sin(t*22)*2.5:0, r=22;
+    ctx.save(); ctx.lineWidth=2; ctx.strokeStyle=INK;
+    if(!lie){ ctx.fillStyle='#D9772B'; [-.55,-.2,.25,.6].forEach((k,i)=>{ const o=dog.run? Math.sin(t*22+i*1.7)*5:0; ctx.beginPath(); ctx.ellipse(x+k*34*-d,y+14+o*.3,4.5,9,0,0,7); ctx.fill(); ctx.stroke(); }); }
+    ctx.fillStyle='#D9772B'; ctx.beginPath(); ctx.ellipse(x-d*14,y+(lie?10:2)+bob,lie?34:30,lie?12:16,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(x-d*10,y+(lie?14:9)+bob,lie?22:18,lie?5:6,0,0,7); ctx.fill();
+    const tx=x-d*42, ty=y-6+bob+(lie?8:0), wag=Math.sin(t*(dog.st==='tug'?20:9))*.3;              // 捲尾巴
+    ctx.save(); ctx.translate(tx,ty); ctx.rotate(wag); ctx.scale(-d,1); ctx.lineCap='round'; ctx.lineWidth=10; ctx.strokeStyle=INK; ctx.beginPath(); ctx.arc(0,-6,7,Math.PI*.6,Math.PI*2.3); ctx.stroke(); ctx.lineWidth=7; ctx.strokeStyle='#D9772B'; ctx.stroke(); ctx.lineWidth=3; ctx.strokeStyle='#FBEBD6'; ctx.beginPath(); ctx.arc(0,-6,5,Math.PI*.9,Math.PI*1.9); ctx.stroke(); ctx.restore();
+    const hx=x+d*18, hy=y-(lie?2:14)+bob;
+    ctx.fillStyle= dog.st==='tug'? '#EE8597':'#F2C230'; ctx.beginPath(); ctx.arc(hx,hy,r+3,0,7); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.arc(hx,hy,r,0,7); ctx.clip(); const im=F[dog.face]; if(im&&im.complete) ctx.drawImage(im,hx-r,hy-r,r*2,r*2); ctx.restore();
+    if(dog.carry) drawPart('peg',hx+d*14,hy+14,.7);
+    if(dog.st==='tug'){ ctx.strokeStyle='#D9772B'; ctx.lineWidth=3; ctx.setLineDash([5,4]); const S=SITE(); ctx.beginPath(); ctx.moveTo(hx,hy+10); ctx.lineTo(S.x+(dog.x<S.x?-1:1)*S.w*.35,S.y+S.h*.3); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(43,39,35,.2)'; ctx.fillRect(hx-26,hy-r-16,52,6); ctx.fillStyle='#D84332'; ctx.fillRect(hx-26,hy-r-16,52*Math.min(1,dog.tug/2.6),6); }
+    if(dog.st==='lie'){ for(let k=0;k<5;k++){ ctx.fillStyle= k<dog.pets? '#EE8597':'rgba(43,39,35,.2)'; ctx.beginPath(); ctx.arc(hx-24+k*12,hy-r-12,4.5,0,7); ctx.fill(); } }
+    ctx.restore();
+  }
+  /* 阿布的搗蛋：叼營釘跑、躺地墊、咬帳篷往後拉 */
+  function mischief(){
+    const S=SITE(), opts=[];
+    if(parts.some(p=>p.k==='peg')||corners.some(c=>c.on)) opts.push('steal','steal');
+    if(count('mat')&&!count('fly')) opts.push('lie');
+    if(placed.length>=2&&placed.length<9) opts.push('tug');
+    if(!opts.length){ dog.wait=2; return; }
+    const kind=pick(opts); dog.run=1; dog.face='face_66';
+    if(kind==='steal'){
+      const loose=parts.filter(p=>p.k==='peg'), c=corners.filter(c=>c.on);
+      const tgt= loose.length&&(Math.random()<.6||!c.length)? pick(loose) : pick(c);
+      dog.st='goSteal'; dog.target=tgt; dog.tx=tgt.x; dog.ty=tgt.y-10;
+    }else if(kind==='lie'){ dog.st='goLie'; dog.tx=S.x; dog.ty=S.y+S.h*.45; }
+    else { dog.st='goTug'; const side=Math.random()<.5?-1:1; dog.tx=Math.max(64,Math.min(W-64,S.x+side*(S.w*.5+40))); dog.ty=S.y+S.h*.35; }
+    dog.x= Math.random()<.5? -40 : W+40; dog.y=H*(.25+Math.random()*.45);
+  }
+  function runTo(dt,sp){ const dx=dog.tx-dog.x, dy=dog.ty-dog.y, d=Math.hypot(dx,dy); if(Math.abs(dx)>2) dog.dir=dx>0?1:-1; if(d<6) return true; const k=Math.min(1,sp*dt/d); dog.x+=dx*k; dog.y+=dy*k; return false; }
+  function leave(line){ dog.st='away'; dog.run=1; dog.tx= dog.x<W/2? -60 : W+60; dog.ty=dog.y; dog.wait=Math.max(3.5,8-placed.length*.35)+Math.random()*3; dog.carry=null; if(line) talk(line,1.2); }
+  function tapDog(){
+    if(dog.st==='lie'){ dog.pets++; dog.face='face_60'; hearts2(dog.x,dog.y-30); tone(620+dog.pets*60,.08,'triangle',.1); if(dog.pets>=5){ dog.face='face_66'; leave('好啦，我讓開'); } else talk(pick(['這裡好舒服','再摸一下','不要趕我']),.9); return; }
+    if(dog.st==='runPeg'||dog.st==='goSteal'&&dog.carry){ parts.push({k:'peg',x:Math.max(20,Math.min(W-20,dog.x)),y:Math.max(H*.25,Math.min(H*.93,dog.y+10))}); dog.carry=null; sfx.good(); leave('哼，還你'); return; }
+    if(dog.st==='tug'){ dog.tug=0; sfx.good(); dog.face='face_143'; leave('被發現了…'); return; }
+    if(dog.st==='goLie'||dog.st==='goTug'||dog.st==='goSteal'){ sfx.pop(); leave('（假裝路過）'); }
+  }
+  const hearts2=(x,y)=>float('♥',x+(Math.random()-.5)*30,y,'#EE8597');
+  const pos=e=>{ const r=wrap.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
+  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); if(phase!=='play') return; const [x,y]=pos(e);
+    if(dog.st!=='away'&&Math.hypot(x-(dog.x+dog.dir*6),y-dog.y)<44){ tapDog(); return; }
+    let best=null, bd=40; parts.forEach(p=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){ bd=d; best=p; } });
+    if(best){ drag={p:best,ox:best.x-x,oy:best.y-y}; try{ wrap.setPointerCapture(e.pointerId); }catch(x){} } });
+  wrap.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=pos(e); drag.p.x=Math.max(14,Math.min(W-14,x+drag.ox)); drag.p.y=Math.max(20,Math.min(H-14,y+drag.oy)); });
+  const drop=()=>{ if(!drag) return; const p=drag.p; drag=null; const S=SITE();
+    if(p.k==='peg'){
+      const c=corners.filter(c=>!c.on).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
+      if(!c||Math.hypot(c.x-p.x,c.y-p.y)>44) return;
+      if(next()!=='peg'){ talk(`先${NAME[next()]}`,1); sfx.bad(); return; }
+      place(p); c.on=true; return;
+    }
+    if(Math.abs(p.x-S.x)>S.w*.6||Math.abs(p.y-(S.y+S.h*.3))>S.h*1.1) return;     // 沒拖到營地
+    if(dog.st==='lie'){ talk('阿布躺在上面…先摸摸他',1.2); sfx.bad(); return; }
+    if(p.k!==next()){ talk(`還不是${NAME[p.k]}，下一步：${NAME[next()]}`,1.3); sfx.bad(); shake=.3; return; }
+    place(p);
+  };
+  wrap.addEventListener('pointerup',drop); wrap.addEventListener('pointercancel',drop);
+  function place(p){ const i=parts.indexOf(p); if(i<0) return; parts.splice(i,1); placed.push({k:p.k}); tone(520+placed.length*50,.1,'triangle',.12); float(`${NAME[p.k]} ✓`,p.x,p.y-10,'#3E6B25');
+    if(placed.length===ORDER.length){ phase='over'; dog.st='done'; dog.run=0; dog.face='face_62'; dog.x=SITE().x; dog.y=SITE().y+SITE().h*.4; dog.dir=1; talk('我先進去睡了',2); sfx.win(); setTimeout(finish,1400); } }
+  function frame(ts){
+    const dt=Math.min(.033,(ts-last)/1000||0); last=ts;
+    if(phase==='play'){
+      t+=dt; shake=Math.max(0,shake-dt);
+      if(dog.st==='away'){ if(!runTo(dt,260)){} else dog.run=0; dog.wait-=dt; if(dog.wait<=0) mischief(); }
+      else if(dog.st==='goSteal'){ let tg=dog.target;
+        if(tg&&parts.includes(tg)){ dog.tx=tg.x; dog.ty=tg.y-10; } else if(tg&&tg.on===false&&!parts.includes(tg)&&corners.includes(tg)){ leave(); }
+        else if(tg&&!parts.includes(tg)&&!corners.includes(tg)){ leave(); }
+        if(dog.st==='goSteal'&&runTo(dt,150)){
+          if(drag&&drag.p===tg){ leave('（假裝路過）'); tg=null; }
+        }
+        if(dog.st==='goSteal'&&tg&&runTo(dt,0)){
+          if(parts.includes(tg)){ parts.splice(parts.indexOf(tg),1); }
+          else if(tg.on){ tg.on=false; const i=placed.map(p=>p.k).lastIndexOf('peg'); if(i>=0) placed.splice(i,1); }
+          dog.carry=true; dog.st='runPeg'; dog.runT=6; dog.face='face_68'; talk(pick(['這是我的！','抓不到～','（叼著跑）']),1.2); bark(1); dog.way=0; }
+      }
+      else if(dog.st==='runPeg'){ dog.runT-=dt; if(runTo(dt,190)||dog.way<=0){ dog.tx=30+Math.random()*(W-60); dog.ty=H*(.24+Math.random()*.68); dog.way=1.2+Math.random(); } dog.way-=dt;
+        if(dog.runT<=0){ parts.push({k:'peg',x:dog.x,y:Math.min(H*.93,dog.y+12)}); dog.carry=null; leave('玩膩了，丟這裡'); } }
+      else if(dog.st==='goLie'){ if(runTo(dt,150)){ dog.st='lie'; dog.run=0; dog.pets=0; dog.face='face_62'; talk('這裡好舒服…',1.4); } }
+      else if(dog.st==='goTug'){ if(runTo(dt,150)){ dog.st='tug'; dog.run=0; dog.tug=0; dog.face='face_66'; dog.dir= dog.x<SITE().x?1:-1; talk('嘿咻！嘿咻！',1.2); bark(2); } }
+      else if(dog.st==='tug'){ dog.tug+=dt; dog.x+=Math.sin(t*30)*.8; if(dog.tug>=2.6){                         // 沒阻止：最後搭好的被扯掉
+          const last=placed.filter(p=>p.k!=='peg').pop();
+          if(last){ placed.splice(placed.lastIndexOf(last),1); if(last.k==='fly'){ corners.forEach(c=>{ if(c.on){ c.on=false; parts.push({k:'peg',x:c.x+(Math.random()-.5)*40,y:Math.min(H*.93,c.y+30)}); } }); placed=placed.filter(p=>p.k!=='peg'); }
+            parts.push({k:last.k,x:dog.x-dog.dir*50,y:Math.min(H*.93,dog.y+30)}); shake=.4; sfx.bad(); float(`${NAME[last.k]}被扯掉了`,SITE().x,SITE().y-20,'#D84332'); }
+          leave('嘿嘿嘿'); } }
+    }
+    /* 畫面 */
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#CFE6F2'); g.addColorStop(.17,'#E9F3E0'); g.addColorStop(.18,'#9CC47E'); g.addColorStop(1,'#7FAF63'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#5E8F48'; for(let k=0;k<30;k++){ const gx=(k*97)%W, gy=H*.22+((k*53)%(H*.55)); ctx.fillRect(gx,gy,2,6); ctx.fillRect(gx+4,gy+1,2,5); }
+    ctx.fillStyle='#3E6B25'; ctx.beginPath(); ctx.moveTo(0,H*.18); for(let x=0;x<=W;x+=W/6) ctx.lineTo(x,H*.18-14-((x*11)%18)); ctx.lineTo(W,H*.18); ctx.fill();
+    ctx.fillStyle='rgba(138,98,66,.25)'; rr(ctx,6,H*.75,W-12,H*.24,14); ctx.fill();                // 放東西的地方
+    ctx.save(); if(shake>0) ctx.translate(Math.sin(t*60)*4,0); drawTent(); ctx.restore();
+    const ents=[...parts.map(p=>({y:p.y,f:()=>{ const hint=next()===p.k&&phase==='play'; if(hint){ ctx.fillStyle='rgba(242,194,48,.35)'; ctx.beginPath(); ctx.arc(p.x,p.y,24+Math.sin(t*6)*2,0,7); ctx.fill(); } drawPart(p.k,p.x,p.y,drag&&drag.p===p?1.2:1); }})),{y:dog.y+14,f:drawDog}];
+    ents.sort((a,b)=>a.y-b.y).forEach(e=>e.f());
+    floats=floats.filter(f=>(f.t+=dt)<1.1); floats.forEach(f=>{ ctx.globalAlpha=1-f.t/1.1; ctx.font='bold 16px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#FFFDF7'; ctx.strokeText(f.txt,f.x,f.y-f.t*36); ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y-f.t*36); ctx.globalAlpha=1; });
+    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=Math.max(8,Math.min(W-tw-8,(dog.st==='away'?W/2:dog.x)-tw/2)), sy=Math.max(84,(dog.st==='away'?H*.2:dog.y-70));
+      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,sx,sy,tw,28,10); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,sx+10,sy+14); }
+    if(phase!=='intro'){
+      const best=S.best.tent||0; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+      ctx.font='bold 32px "Huninn",sans-serif'; ctx.lineWidth=6; ctx.strokeStyle=INK; const txt=`${t.toFixed(1)} 秒`; ctx.strokeText(txt,W/2,32); ctx.fillStyle='#FFFDF7'; ctx.fillText(txt,W/2,32);
+      ctx.font='bold 13px "Huninn",sans-serif'; ctx.fillStyle=INK; ctx.fillText(next()? `下一步：${NAME[next()]}${next()==='peg'?`（${4-count('peg')} 根）`:''}${best?`　最快 ${best} 秒`:''}` : '搭好了！',W/2,60); ctx.restore();
+    }
+    if(phase!=='done') raf=requestAnimationFrame(frame);
+  }
+  function finish(){
+    phase='done'; cancelAnimationFrame(raf);
+    const sec=Math.round(t), bones=Math.max(2,Math.min(12,Math.round(16-sec/6)));   // 越快越多
+    const prev=S.best.tent||0, nb=!prev||sec<prev; if(nb) S.best.tent=sec; save();
+    winDialog({title:'帳篷搭好了！', text:`花了 ${sec} 秒${nb?'，新紀錄！':`（最快 ${prev} 秒）`}<br>阿布第一個鑽進去睡了。`, bones, faceKey:'face_62', again:()=>go('tent'), rank:{game:'tent',score:sec}});
+  }
+  function intro(){
+    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>搭帳篷</h3><p>照順序把地墊、內帳、營柱、外帳、營釘拖到營地。<br>阿布會一直來搗蛋：叼走營釘、躺在地墊上、咬帳篷往後拉，<b>點他</b>就會停。<br>越快搭好，餅乾越多！</p><button class="btn" id="go">開始</button>`);
+    m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); setup(); t=0; phase='play'; last=performance.now(); talk('我來幫忙！',1.4); };
+  }
+  setup(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
   cleanup=()=>{ phase='done'; cancelAnimationFrame(raf); ro.disconnect(); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
