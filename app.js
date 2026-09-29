@@ -225,11 +225,11 @@ function go(tab,keepScroll){
   if(cleanup){ cleanup(); cleanup=null; }
   current=tab;
   if(tab==='games'||tab==='food') backTo=tab;
-  const navTab={memory:backTo,catch:backTo,puzzle:backTo,bowl:backTo,quiz:backTo,car:backTo,walk:backTo,stairs:backTo}[tab]||tab;
+  const navTab={memory:backTo,catch:backTo,puzzle:backTo,bowl:backTo,quiz:backTo,car:backTo,walk:backTo,stairs:backTo,seek:backTo,bbq:backTo}[tab]||tab;
   document.querySelectorAll('nav button').forEach(b=>b.toggleAttribute('aria-current',false));
   const nb=document.querySelector(`nav button[data-tab="${navTab}"]`); if(nb) nb.setAttribute('aria-current','page');
   main.innerHTML='';
-  ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz,car:Car,walk:Walk,stairs:Stairs})[tab]();
+  ({home:Home,games:Games,album:Album,food:Food,memory:Memory,catch:Catch,puzzle:Puzzle,bowl:Bowl,quiz:Quiz,car:Car,walk:Walk,stairs:Stairs,seek:Seek,bbq:Bbq})[tab]();
   main.scrollTop=keepScroll? y: 0;
   renderPass();
 }
@@ -571,6 +571,8 @@ function Games(){
     <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多、怕鞭炮，越緊張越想衝回家</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="stairs"><img class="thumb" src="img/face_stairs.jpg" alt=""><div><b>阿布下樓梯</b><span>一階一階往下跳，別被天花板刺到</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="seek"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>手電筒找阿布</b><span>露營的晚上阿布躲起來了，拿手電筒找</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="bbq"><img class="thumb" src="img/face_68.jpg" alt=""><div><b>營火烤肉</b><span>翻面烤熟，能吃的才分給阿布</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
   main.appendChild(s);
@@ -590,7 +592,7 @@ function winDialog({title,text,bones,faceKey='face_60',again,rank}){
 }
 
 /* ================= 全家排行榜：各玩各的，成績上傳比高低 ================= */
-const GAME_INFO={memory:{n:'回憶翻牌',u:'次',low:1},catch:{n:'阿布接零食',u:'分'},puzzle:{n:'照片拼圖',u:'次',low:1},bowl:{n:'幫阿布裝飯',u:'片'},quiz:{n:'阿布能不能吃',u:'題'},car:{n:'阿布去兜風',u:'秒'},walk:{n:'陪阿布散步',u:'公尺'},stairs:{n:'阿布下樓梯',u:'樓'}};
+const GAME_INFO={memory:{n:'回憶翻牌',u:'次',low:1},catch:{n:'阿布接零食',u:'分'},puzzle:{n:'照片拼圖',u:'次',low:1},bowl:{n:'幫阿布裝飯',u:'片'},quiz:{n:'阿布能不能吃',u:'題'},car:{n:'阿布去兜風',u:'秒'},walk:{n:'陪阿布散步',u:'公尺'},stairs:{n:'阿布下樓梯',u:'樓'},seek:{n:'手電筒找阿布',u:'次'},bbq:{n:'營火烤肉',u:'分'}};
 let BOARDS=lsGet('abu-boards')||{};
 const fmtScore=(g,v)=>`${v} ${GAME_INFO[g].u}`;
 async function loadBoards(){
@@ -1848,6 +1850,332 @@ function Stairs(){
   }
   reset(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
   cleanup=()=>{ phase='done'; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown',onKey); window.removeEventListener('keyup',onKey); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
+}
+
+/* ================= 小遊戲：手電筒找阿布（阿布去露營） =================
+ * 天黑了，阿布躲在營地的帳篷、車子、椅子、樹叢後面，只露出捲尾巴、耳朵或反光的眼睛。
+ * 手指拖著手電筒照，光圈停在阿布身上一下就算找到；照到野貓、狸貓會浪費時間。比誰找到最多次。 */
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); }
+function Seek(){
+  const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('手電筒找阿布','kstat'));
+  const wrap=h(`<div class="catch-wrap seek-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
+  s.appendChild(h(`<div class="legend"><span>手指拖著手電筒，光圈停在阿布身上就找到了</span></div>`));
+  main.appendChild(s);
+  const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), dk=document.createElement('canvas'), dctx=dk.getContext('2d'), INK='#2B2723';
+  const F={}; ['face_143','face_60','face_66','face_65','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
+  const START=40, FIND_T=6, MISS_T=3, DWELL=.3;
+  let W=0,H=0,dpr=1, objs=[], tells=[], stars=[], round=0, found=0, left=START, t=0, last=0, raf=0, phase='intro';
+  let bx=0, by=0, tx=0, ty=0, beamR=80, pop=null, popT=0, say='', sayT=0, flash=0, roundT=0;
+  function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height;
+    [cv,dk].forEach(c=>{ c.width=W*dpr; c.height=H*dpr; }); ctx.setTransform(dpr,0,0,dpr,0,0); dctx.setTransform(dpr,0,0,dpr,0,0);
+    stars=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*H*.22,r:Math.random()*1.3+.4,p:Math.random()*6})); }
+  size(); const ro=new ResizeObserver(()=>{ size(); if(phase==='play') layout(); }); ro.observe(wrap);
+  $('#kstat').textContent='';
+  const talk=(txt,ms=1.2)=>{ say=txt; sayT=ms; };
+  /* 手指按著的時候，光圈在手指上方一點（不被手指擋住） */
+  const pos=e=>{ const r=wrap.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
+  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); const [x,y]=pos(e); tx=x; ty=Math.max(0,y-60); try{ wrap.setPointerCapture(e.pointerId); }catch(x){} });
+  wrap.addEventListener('pointermove',e=>{ if(e.pointerType==='mouse'&&!e.buttons){ const [x,y]=pos(e); tx=x; ty=y; return; } const [x,y]=pos(e); tx=x; ty=Math.max(0,y-60); });
+
+  /* 營地的東西：x＝中心、y＝地面、sc＝大小；每樣東西有可以躲的位置 */
+  const KINDS={
+    tent:{w:130,h:92}, car:{w:160,h:78}, chair:{w:62,h:64}, tree:{w:80,h:170}, bush:{w:96,h:54}, cooler:{w:66,h:44}, table:{w:110,h:52}
+  };
+  function spots(o){
+    const {x,y}=o, w=o.w, hh=o.h;
+    switch(o.k){
+      case 'tent':  return [['tail',x+w*.47,y-hh*.22,1],['tail',x-w*.47,y-hh*.22,-1],['eyes',x,y-hh*.28]];
+      case 'car':   return [['eyes',x,y-8],['ears',x+w*.12,y-hh],['tail',x+w*.5,y-hh*.45,1],['tail',x-w*.5,y-hh*.45,-1]];
+      case 'chair': return [['eyes',x,y-12],['tail',x+w*.45,y-hh*.35,1]];
+      case 'tree':  return [['tail',x+14,y-26,1],['tail',x-14,y-26,-1]];
+      case 'bush':  return [['ears',x,y-hh+4],['tail',x+w*.48,y-hh*.4,1],['tail',x-w*.48,y-hh*.4,-1],['eyes',x-w*.1,y-hh*.45]];
+      case 'cooler':return [['ears',x,y-hh],['tail',x+w*.5,y-hh*.45,1],['tail',x-w*.5,y-hh*.45,-1]];
+      case 'table': return [['eyes',x,y-14],['tail',x+w*.46,y-10,1]];
+    }
+  }
+  function layout(){
+    const n=Math.min(10,5+round), ks=Object.keys(KINDS); objs=[];
+    const sc=Math.max(.72,Math.min(1,W/400));
+    for(let tries=0; objs.length<n && tries<400; tries++){
+      const k= objs.length===0? 'car' : objs.length===1? 'tent' : pick(ks), d=KINDS[k];
+      const w=d.w*sc, hh=d.h*sc, x=w/2+8+Math.random()*(W-w-16), y=H*.36+hh*.5+Math.random()*(H*.6-hh*.5);
+      if(y-hh<H*.24) continue;
+      if(objs.some(o=>Math.abs(o.x-x)<(o.w+w)/2+6 && Math.abs((o.y-o.h/2)-(y-hh/2))<(o.h+hh)/2+6)) continue;
+      objs.push({k,x,y,w,h:hh,c: k==='tent'? pick(['#4F7CAC','#8DBF7A','#E3B341']) : k==='chair'? pick(['#4F7CAC','#3E6B25','#8A4F7D']) : ''});
+    }
+    objs.sort((a,b)=>a.y-b.y);
+    /* 阿布躲一個地方，假貨躲其他地方 */
+    const all=[]; objs.forEach(o=>spots(o).forEach(sp=>all.push({o,sp})));
+    for(let i=all.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [all[i],all[j]]=[all[j],all[i]]; }
+    const used=new Set(); tells=[];
+    const take=(abu)=>{ const c=all.find(a=>!used.has(a.o)); if(!c) return; used.add(c.o); const [kind,x,y,side]=c.sp;
+      tells.push({abu,kind,x,y,side:side||1,o:c.o,dw:0,s:Math.max(.62,1-round*.035)*sc,ph:Math.random()*6}); };
+    take(true); const nd=Math.min(3,Math.floor((round+1)/2)); for(let i=0;i<nd;i++) take(false);
+    beamR=Math.max(W*.15,W*.23-round*3); roundT=0;
+  }
+  /* 畫營地 */
+  function drawObj(o){
+    const {x,y,w}=o, hh=o.h; ctx.lineWidth=2; ctx.strokeStyle=INK;
+    if(o.k==='tent'){
+      ctx.fillStyle=o.c; ctx.beginPath(); ctx.moveTo(x-w/2,y); ctx.lineTo(x,y-hh); ctx.lineTo(x+w/2,y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='rgba(0,0,0,.45)'; ctx.beginPath(); ctx.moveTo(x-w*.16,y); ctx.lineTo(x,y-hh*.55); ctx.lineTo(x+w*.16,y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,y-hh); ctx.lineTo(x,y-hh-8); ctx.stroke();
+    }else if(o.k==='car'){                                           // 家裡的紅色小車
+      const b=y-14; ctx.fillStyle='#C8352B'; rr(ctx,x-w/2,b-hh*.5,w,hh*.5,10); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x-w*.32,b-hh*.5); ctx.lineTo(x-w*.2,b-hh); ctx.lineTo(x+w*.22,b-hh); ctx.lineTo(x+w*.36,b-hh*.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#BFD9E6'; ctx.beginPath(); ctx.moveTo(x-w*.26,b-hh*.53); ctx.lineTo(x-w*.17,b-hh*.92); ctx.lineTo(x-.01*w,b-hh*.92); ctx.lineTo(x-.01*w,b-hh*.53); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+w*.03,b-hh*.53); ctx.lineTo(x+w*.03,b-hh*.92); ctx.lineTo(x+w*.2,b-hh*.92); ctx.lineTo(x+w*.3,b-hh*.53); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#2B2723'; [-.3,.3].forEach(k=>{ ctx.beginPath(); ctx.arc(x+w*k,b,13,0,7); ctx.fill(); ctx.fillStyle='#8C8A86'; ctx.beginPath(); ctx.arc(x+w*k,b,5,0,7); ctx.fill(); ctx.fillStyle='#2B2723'; });
+    }else if(o.k==='chair'){
+      ctx.strokeStyle='#5C6B7A'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x-w*.4,y); ctx.lineTo(x+w*.4,y-hh*.45); ctx.moveTo(x+w*.4,y); ctx.lineTo(x-w*.4,y-hh*.45); ctx.stroke();
+      ctx.fillStyle=o.c; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,x-w/2,y-hh*.55,w,hh*.16,4); ctx.fill(); ctx.stroke(); rr(ctx,x-w*.42,y-hh,w*.84,hh*.45,6); ctx.fill(); ctx.stroke();
+    }else if(o.k==='tree'){
+      ctx.fillStyle='#6B4A2E'; ctx.fillRect(x-9,y-hh*.3,18,hh*.3); ctx.strokeRect(x-9,y-hh*.3,18,hh*.3);
+      ctx.fillStyle='#2F5A2A'; [[.25,1],[.5,.8],[.75,.6]].forEach(([k,sw])=>{ ctx.beginPath(); ctx.moveTo(x-w/2*sw,y-hh*.2-hh*k*.55); ctx.lineTo(x,y-hh*.2-hh*k*.55-hh*.42); ctx.lineTo(x+w/2*sw,y-hh*.2-hh*k*.55); ctx.closePath(); ctx.fill(); ctx.stroke(); });
+    }else if(o.k==='bush'){
+      ctx.fillStyle='#3E6B25'; [[-.28,.55],[.28,.55],[0,.75]].forEach(([k,r])=>{ ctx.beginPath(); ctx.arc(x+w*k,y-hh*.45,hh*r,Math.PI,0); ctx.lineTo(x+w*k+hh*r,y); ctx.lineTo(x+w*k-hh*r,y); ctx.closePath(); ctx.fill(); ctx.stroke(); });
+    }else if(o.k==='cooler'){
+      ctx.fillStyle='#3E8FB0'; rr(ctx,x-w/2,y-hh,w,hh,6); ctx.fill(); ctx.stroke(); ctx.fillStyle='#FFFDF7'; rr(ctx,x-w/2,y-hh,w,hh*.28,6); ctx.fill(); ctx.stroke();
+    }else if(o.k==='table'){
+      ctx.fillStyle='#C9A26B'; ctx.fillRect(x-w/2,y-hh,w,10); ctx.strokeRect(x-w/2,y-hh,w,10);
+      ctx.fillStyle='#8A6242'; ctx.fillRect(x-w*.42,y-hh+10,6,hh-10); ctx.fillRect(x+w*.42-6,y-hh+10,6,hh-10);
+    }
+  }
+  /* 露出來的一小部分：阿布＝橘色捲尾巴、橘耳朵、琥珀色眼睛；假貨＝灰條紋尾巴（狸貓）、灰耳朵、綠眼睛（野貓） */
+  function drawTell(tl){
+    const s=tl.s*18, x=tl.x, y=tl.y, abu=tl.abu; ctx.lineWidth=2; ctx.strokeStyle=INK;
+    if(tl.kind==='tail'){
+      const wag=Math.sin(t*(abu?7:3)+tl.ph)*.25, d=tl.side;
+      ctx.save(); ctx.translate(x,y); ctx.rotate(wag*d); ctx.scale(d,1);
+      if(abu){
+        ctx.lineCap='round'; ctx.strokeStyle=INK; ctx.lineWidth=s*.62+3; ctx.beginPath(); ctx.moveTo(-s*.6,0); ctx.lineTo(s*.2,0); ctx.arc(s*.2,-s*.55,s*.55,Math.PI/2,-Math.PI*1.1,true); ctx.stroke();
+        ctx.strokeStyle='#D9772B'; ctx.lineWidth=s*.62; ctx.stroke();
+        ctx.strokeStyle='#FBEBD6'; ctx.lineWidth=s*.22; ctx.beginPath(); ctx.arc(s*.2,-s*.55,s*.42,Math.PI*.6,-Math.PI*.9,true); ctx.stroke();
+      }else{
+        ctx.fillStyle='#7B7670'; rr(ctx,-s*.6,-s*.28,s*1.9,s*.56,s*.28); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#2B2723'; for(let k=0;k<3;k++) ctx.fillRect(s*(.1+k*.42),-s*.27,s*.16,s*.54);
+      }
+      ctx.restore();
+    }else if(tl.kind==='ears'){
+      const tw=Math.sin(t*2+tl.ph)>.93? -2:0;
+      [-1,1].forEach(k=>{ const ex=x+k*s*.55;
+        ctx.fillStyle= abu? '#D9772B':'#6E6A65'; ctx.beginPath(); ctx.moveTo(ex-s*.38,y+2); ctx.lineTo(ex+k*s*.08,y-s*.95+tw); ctx.lineTo(ex+s*.38,y+2); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle= abu? '#FBEBD6':'#C9B8B0'; ctx.beginPath(); ctx.moveTo(ex-s*.18,y); ctx.lineTo(ex+k*s*.06,y-s*.6+tw); ctx.lineTo(ex+s*.18,y); ctx.closePath(); ctx.fill(); });
+    }else{
+      ctx.fillStyle= abu? 'rgba(217,119,43,.9)':'rgba(110,106,101,.9)'; ctx.beginPath(); ctx.ellipse(x,y,s*1.05,s*.62,0,0,7); ctx.fill();
+      if(abu){ ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(x,y+s*.3,s*.5,s*.3,0,0,7); ctx.fill(); ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(x,y+s*.18,s*.14,0,7); ctx.fill(); }
+      eyes(tl,1);
+    }
+  }
+  function eyes(tl,a){                                               // 眼睛在黑暗中會反光
+    if(tl.kind!=='eyes') return; const s=tl.s*18, blink=Math.sin(t*1.3+tl.ph)>.96;
+    ctx.fillStyle= tl.abu? `rgba(255,190,70,${a})` : `rgba(120,255,140,${a})`;
+    [-1,1].forEach(k=>{ ctx.beginPath(); ctx.ellipse(tl.x+k*s*.42,tl.y-s*.12,s*.16,blink?1:s*.16,0,0,7); ctx.fill(); });
+  }
+  function drawScene(){
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#1B2440'); g.addColorStop(.25,'#2E3B5C'); g.addColorStop(.27,'#3B5A34'); g.addColorStop(1,'#2E4A27'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#FFF6D8'; stars.forEach(st=>{ ctx.globalAlpha=.5+.5*Math.sin(t*2+st.p); ctx.beginPath(); ctx.arc(st.x,st.y,st.r,0,7); ctx.fill(); }); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(W*.82,H*.08,16,0,7); ctx.fill(); ctx.fillStyle='#2E3B5C'; ctx.beginPath(); ctx.arc(W*.82+7,H*.08-4,14,0,7); ctx.fill();
+    ctx.fillStyle='#22381E'; ctx.beginPath(); ctx.moveTo(0,H*.27); for(let x=0;x<=W;x+=W/8) ctx.lineTo(x,H*.27-10-((x*7)%23)); ctx.lineTo(W,H*.27); ctx.fill();
+    tells.forEach(tl=>{ if(tl.kind!=='eyes') drawTell(tl); });      // 尾巴、耳朵在東西後面
+    objs.forEach(drawObj);
+    tells.forEach(tl=>{ if(tl.kind==='eyes') drawTell(tl); });      // 眼睛在車底、桌子底下
+  }
+  function frame(ts){
+    const dt=Math.min(.033,(ts-last)/1000||0); last=ts; t+=dt;
+    bx+=(tx-bx)*Math.min(1,dt*14); by+=(ty-by)*Math.min(1,dt*14);
+    if(phase==='play'){
+      left-=dt; roundT+=dt; flash=Math.max(0,flash-dt);
+      for(const tl of tells.slice()){
+        if(Math.hypot(tl.x-bx,tl.y-10-by)<beamR*.55){ tl.dw+=dt;
+          if(tl.dw>=DWELL){
+            if(tl.abu){ found++; left+=FIND_T; phase='found'; popT=0; pop={x:tl.x,y:tl.y}; sfx.good(); bark(1); talk(pick(['被找到了…','你怎麼知道！','嘿嘿','我只是在巡邏','（尾巴出賣了我）']),1);
+              if(navigator.vibrate) try{navigator.vibrate(40)}catch(e){} setTimeout(()=>{ if(phase==='found'){ round++; layout(); phase='play'; } },950); break; }
+            else { tells.splice(tells.indexOf(tl),1); left=Math.max(0,left-MISS_T); flash=.35; sfx.bad(); talk(tl.kind==='tail'? '是狸貓！' : '是野貓！喵～',1); }
+          }
+        } else tl.dw=Math.max(0,tl.dw-dt*2);
+      }
+      if(roundT>9&&Math.floor(roundT*2)%6===0&&sayT<=0) talk(pick(['（沙沙）','（阿布的鈴鐺聲）','（打噴嚏）']),.8);
+      if(left<=0){ left=0; phase='over'; setTimeout(finish,500); }
+    }
+    if(phase==='found') popT+=dt;
+    drawScene();
+    /* 黑夜：整片暗下來，手電筒的光圈挖亮 */
+    dctx.globalCompositeOperation='source-over'; dctx.clearRect(0,0,W,H); dctx.fillStyle='rgba(6,8,18,.93)'; dctx.fillRect(0,0,W,H);
+    dctx.globalCompositeOperation='destination-out';
+    const lg=dctx.createRadialGradient(bx,by,beamR*.2,bx,by,beamR); lg.addColorStop(0,'rgba(0,0,0,1)'); lg.addColorStop(.7,'rgba(0,0,0,.9)'); lg.addColorStop(1,'rgba(0,0,0,0)');
+    dctx.fillStyle=lg; dctx.beginPath(); dctx.arc(bx,by,beamR,0,7); dctx.fill();
+    const fx=W*.5, fy=H*.97, fr=46+Math.sin(t*9)*4, fg=dctx.createRadialGradient(fx,fy,4,fx,fy,fr); fg.addColorStop(0,'rgba(0,0,0,.8)'); fg.addColorStop(1,'rgba(0,0,0,0)');   // 營火的一點光
+    dctx.fillStyle=fg; dctx.beginPath(); dctx.arc(fx,fy,fr,0,7); dctx.fill();
+    ctx.drawImage(dk,0,0,W,H);
+    ctx.fillStyle='rgba(255,236,190,.07)'; ctx.beginPath(); ctx.arc(bx,by,beamR,0,7); ctx.fill();
+    ctx.fillStyle='#F2A93B'; for(let k=0;k<3;k++){ const fh=14+Math.sin(t*12+k*2)*5; ctx.beginPath(); ctx.moveTo(fx-10+k*10-6,fy+8); ctx.quadraticCurveTo(fx-10+k*10,fy-fh,fx-10+k*10+6,fy+8); ctx.fill(); }
+    tells.forEach(tl=>eyes(tl,.55));                                 // 黑暗中也看得到反光的眼睛
+    /* 找到的光圈進度 */
+    tells.forEach(tl=>{ if(tl.dw>0&&phase==='play'){ ctx.strokeStyle='#F2C230'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(tl.x,tl.y-10,26,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,tl.dw/DWELL)); ctx.stroke(); } });
+    if(pop){ const k=Math.min(1,popT*4), r=30+k*14, py=pop.y-10-k*30;         // 阿布跳出來
+      ctx.save(); ctx.globalAlpha=phase==='found'? 1 : Math.max(0,1-popT); ctx.fillStyle='#F2C230'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(pop.x,py,r+3,0,7); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(pop.x,py,r,0,7); ctx.clip(); const im=F[popT<.5?'face_143':'face_66']; if(im.complete) ctx.drawImage(im,pop.x-r,py-r,r*2,r*2); ctx.restore(); if(phase==='play') pop=null; }
+    if(flash>0){ ctx.fillStyle=`rgba(216,67,50,${flash*.6})`; ctx.fillRect(0,0,W,H); }
+    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='15px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=W/2-tw/2, sy=H*.2;
+      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,sx,sy,tw,28,10); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(say,W/2,sy+14); }
+    if(phase!=='intro'){
+      const best=S.best.seek||0; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+      ctx.font='bold 34px "Huninn",sans-serif'; ctx.lineWidth=6; ctx.strokeStyle=INK; const txt=`找到 ${found} 次`; ctx.strokeText(txt,W/2,40); ctx.fillStyle= best&&found>best? '#F2C230':'#FFFDF7'; ctx.fillText(txt,W/2,40);
+      ctx.font='bold 13px "Huninn",sans-serif'; ctx.fillStyle= left<8? '#FF8C7A':'#FFFDF7'; ctx.fillText(`剩 ${Math.ceil(left)} 秒${best?`　最高 ${best} 次`:''}`,W/2,70); ctx.restore();
+    }
+    if(phase!=='done') raf=requestAnimationFrame(frame);
+  }
+  function finish(){
+    phase='done'; cancelAnimationFrame(raf);
+    const bones=Math.max(1,Math.min(12,Math.floor(found/2)));          // 每找到 2 次 1 片餅乾
+    const best=Math.max(S.best.seek||0,found), nb=best>(S.best.seek||0); S.best.seek=best; save();
+    winDialog({title:`找到阿布 ${found} 次`, text:`${nb?'新紀錄！':`最高 ${best} 次`}<br>每找到 2 次換 1 片餅乾。`, bones, faceKey:'face_66', again:()=>go('seek'), rank:{game:'seek',score:found}});
+  }
+  function intro(){
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>手電筒找阿布</h3><p>露營的晚上，阿布躲起來了！<br>手指拖著手電筒，照到捲尾巴、耳朵或反光的眼睛，停一下就找到了。<br>小心別照到野貓、狸貓。</p><button class="btn" id="go">開始</button>`);
+    m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); round=0; found=0; left=START; bx=tx=W/2; by=ty=H*.12; layout(); phase='play'; last=performance.now(); talk('阿布？你在哪裡？',1.4); };
+  }
+  /* 手電筒先照天空，不會一開始就剛好照到阿布 */
+  bx=tx=W/2; by=ty=H*.12; layout(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
+  cleanup=()=>{ phase='done'; cancelAnimationFrame(raf); ro.disconnect(); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
+}
+
+/* ================= 小遊戲：營火烤肉（阿布去露營） =================
+ * 烤網上的食物會一直烤，看得到上面那一面、看不到下面那一面（冒煙越黑越焦）。點一下翻面；兩面都熟了拖給家人（盤子）或拖給阿布。
+ * 阿布只能吃原味雞肉、地瓜、蝦；香腸、玉米、棉花糖、洋蔥不能給。60 秒比分數。 */
+const BBQ_ITEMS=[
+  {n:'雞肉串',  raw:'#F2C9B0', done:'#C98A4B', k:.16, ok:1, why:'原味雞肉，阿布可以吃！'},
+  {n:'地瓜',    raw:'#F4B860', done:'#C9782E', k:.12, ok:1, why:'烤地瓜，阿布最愛！'},
+  {n:'鮮蝦',    raw:'#9FB7C4', done:'#F08A5D', k:.22, ok:1, why:'剝殼的熟蝦，可以！'},
+  {n:'香腸',    raw:'#E58A8A', done:'#A8412F', k:.18, ok:0, why:'香腸太鹹、有調味，阿布不能吃'},
+  {n:'玉米',    raw:'#F2D04A', done:'#D9A12E', k:.15, ok:0, why:'玉米芯會卡在腸子裡，不能給'},
+  {n:'棉花糖',  raw:'#FFFDF7', done:'#E0B071', k:.32, ok:0, why:'棉花糖都是糖，阿布不能吃'},
+  {n:'洋蔥串',  raw:'#EDE3F2', done:'#B98A5A', k:.17, ok:0, why:'洋蔥對狗狗有毒！'},
+];
+function Bbq(){
+  const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('營火烤肉','qstat'));
+  const wrap=h(`<div class="catch-wrap bbq-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
+  s.appendChild(h(`<div class="legend"><span>點一下翻面・熟了拖到盤子或阿布・<b class="no">香腸、玉米、棉花糖、洋蔥</b>不能給阿布</span></div>`));
+  main.appendChild(s);
+  const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
+  const F={}; ['face_143','face_60','face_66','face_65','face_68','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
+  const TIME=60, OK=.6, BURN=1.2, CHAR=1.6;
+  let W=0,H=0,dpr=1, slots=[], smoke=[], floats=[], score=0, left=TIME, t=0, last=0, raf=0, phase='intro', spawnT=0, flare=0, flareT=8;
+  let drag=null, faceK='face_65', faceT=0, say='', sayT=0, lastBeg=0;
+  function size(){ const r=wrap.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+    const cx=[W*.29,W*.71], cy=[H*.34,H*.52]; const old=slots; slots=[]; cy.forEach(y=>cx.forEach(x=>slots.push({x,y,it:null}))); old.forEach((o,i)=>{ if(slots[i]) slots[i].it=o.it; }); }
+  size(); const ro=new ResizeObserver(size); ro.observe(wrap);
+  $('#qstat').textContent='';
+  const ABU=()=>({x:W*.2,y:H*.85,r:Math.min(54,W*.14)}), PLATE=()=>({x:W*.76,y:H*.86,rx:Math.min(78,W*.2),ry:30});
+  const talk=(txt,k,ms=1.3)=>{ say=txt; sayT=ms; if(k){ faceK=k; faceT=ms; } };
+  const float=(txt,x,y,c)=>floats.push({txt,x,y,c,t:0});
+  const IW=()=>Math.min(118,W*.3), IH=34;
+  function spawn(){
+    const free=slots.filter(sl=>!sl.it); if(!free.length) return;
+    const sl=pick(free), d=BBQ_ITEMS[Math.random()<.5? Math.floor(Math.random()*3) : 3+Math.floor(Math.random()*4)];   // 一半是阿布能吃的
+    sl.it={d,a:[0,0],flip:0,sl};
+  }
+  /* 點＝翻面；拖＝送出去 */
+  const pos=e=>{ const r=wrap.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
+  wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); if(phase!=='play') return; const [x,y]=pos(e);
+    const sl=slots.find(sl=>sl.it&&Math.abs(x-sl.x)<IW()/2+10&&Math.abs(y-sl.y)<IH/2+22); if(!sl) return;
+    drag={it:sl.it,x0:x,y0:y,x,y,moved:false}; try{ wrap.setPointerCapture(e.pointerId); }catch(x){} });
+  wrap.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=pos(e); drag.x=x; drag.y=y; if(Math.hypot(x-drag.x0,y-drag.y0)>12) drag.moved=true; });
+  const up=()=>{ if(!drag) return; const d=drag; drag=null; const it=d.it; if(!it.sl.it) return;
+    if(!d.moved){ it.a=[it.a[1],it.a[0]]; it.flip=.25; tone(300,.12,'sawtooth',.03,-80); tone(900,.05,'triangle',.05); return; }
+    const A=ABU(), P=PLATE();
+    if(Math.hypot(d.x-A.x,d.y-A.y)<A.r+34) serve(it,'abu',d.x,d.y);
+    else if(Math.abs(d.x-P.x)<P.rx+24&&Math.abs(d.y-P.y)<P.ry+40) serve(it,'plate',d.x,d.y);
+  };
+  wrap.addEventListener('pointerup',up); wrap.addEventListener('pointercancel',()=>{ drag=null; });
+  function serve(it,to,x,y){
+    it.sl.it=null; const [lo,hi]=[Math.min(...it.a),Math.max(...it.a)], perfect=lo>=.75&&hi<=1.05;
+    if(hi>BURN){ score=Math.max(0,score-5); float('烤焦了 −5',x,y,'#D84332'); sfx.bad(); if(to==='abu') talk('焦焦的…','face_62'); return; }
+    if(lo<OK){ score=Math.max(0,score-5); float('還沒熟 −5',x,y,'#D84332'); sfx.bad(); if(to==='abu') talk('生的不能吃啦','face_143'); return; }
+    if(to==='plate'){ const p=10+(perfect?5:0); score+=p; float(perfect?`完美！+${p}`:`+${p}`,x,y,'#3E6B25'); sfx.good(); return; }
+    if(it.d.ok){ const p=15+(perfect?5:0); score+=p; float(perfect?`完美！+${p}`:`+${p}`,x,y,'#3E6B25'); sfx.crunch(); bark(1); talk(pick([it.d.why,'好好吃！','還要還要','阿布最高！！']),'face_66'); }
+    else { score=Math.max(0,score-15); float('−15',x,y,'#D84332'); sfx.bad(); talk(it.d.why,'face_143',2.2); if(navigator.vibrate) try{navigator.vibrate(80)}catch(e){} }
+  }
+  const lerp=(a,b,k)=>{ const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16)), A=p(a), B=p(b); return `rgb(${A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')})`; };
+  const sideColor=(d,v)=> v<=.8? lerp(d.raw,d.done,Math.min(1,v/.8)) : v<=BURN? d.done : lerp(d.done,'#2B2118',Math.min(1,(v-BURN)/(CHAR-BURN)));
+  /* 食物的樣子（看到的是上面那一面） */
+  function drawItem(it,x,y){
+    const d=it.d, w=IW(), c=sideColor(d,it.a[1]), sq=it.flip>0? Math.abs(Math.cos(it.flip/.25*Math.PI)) : 1;
+    ctx.save(); ctx.translate(x,y); ctx.scale(1,Math.max(.1,sq)); ctx.lineWidth=2; ctx.strokeStyle=INK; ctx.fillStyle=c;
+    if(d.n==='雞肉串'||d.n==='洋蔥串'||d.n==='棉花糖'){
+      ctx.strokeStyle='#C9A26B'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(-w/2,0); ctx.lineTo(w/2,0); ctx.stroke(); ctx.strokeStyle=INK; ctx.lineWidth=2;
+      for(let k=0;k<3;k++){ const cx=-w*.28+k*w*.24;
+        if(d.n==='洋蔥串'){ ctx.fillStyle= k===1? lerp('#6DBF5A','#3E5A2A',Math.min(1,it.a[1])) : c; }
+        if(d.n==='棉花糖'){ rr(ctx,cx-11,-13,22,26,6); } else { rr(ctx,cx-13,-14,26,28,5); }
+        ctx.fill(); ctx.stroke(); }
+    }else if(d.n==='地瓜'){
+      for(let k=0;k<2;k++){ ctx.beginPath(); ctx.ellipse(-w*.2+k*w*.38,0,w*.18,15,0,0,7); ctx.fillStyle='#8A3E5C'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(-w*.2+k*w*.38,0,w*.14,11,0,0,7); ctx.fillStyle=c; ctx.fill(); }
+    }else if(d.n==='鮮蝦'){
+      for(let k=0;k<2;k++){ ctx.save(); ctx.translate(-w*.2+k*w*.4,0); ctx.beginPath(); ctx.arc(0,4,16,Math.PI*1.05,Math.PI*2.1); ctx.lineWidth=11; ctx.strokeStyle=INK; ctx.stroke(); ctx.lineWidth=8; ctx.strokeStyle=c; ctx.stroke(); ctx.restore(); }
+    }else if(d.n==='香腸'){
+      rr(ctx,-w*.42,-11,w*.84,22,11); ctx.fill(); ctx.stroke(); ctx.strokeStyle='rgba(43,39,35,.4)'; ctx.beginPath(); for(let k=-2;k<=2;k++){ ctx.moveTo(k*w*.13-5,-7); ctx.lineTo(k*w*.13+5,7); } ctx.stroke();
+    }else if(d.n==='玉米'){
+      rr(ctx,-w*.4,-14,w*.8,28,14); ctx.fill(); ctx.stroke(); ctx.fillStyle='rgba(43,39,35,.18)'; for(let k=-4;k<=4;k++) for(let j=-1;j<=1;j++){ ctx.beginPath(); ctx.arc(k*w*.08,j*8,2,0,7); ctx.fill(); }
+      ctx.fillStyle='#8DBF7A'; ctx.beginPath(); ctx.moveTo(w*.38,-10); ctx.lineTo(w*.52,0); ctx.lineTo(w*.38,10); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function frame(ts){
+    const dt=Math.min(.033,(ts-last)/1000||0); last=ts; t+=dt;
+    if(phase==='play'){
+      left-=dt; spawnT-=dt;
+      if(spawnT<=0){ spawn(); spawnT= Math.max(.9,2.2-(TIME-left)/40); }
+      flareT-=dt; if(flareT<=0&&left<TIME-15){ flare=2.2; flareT=7+Math.random()*6; talk('火變大了！',null,1); tone(120,.4,'sawtooth',.05,60); }
+      flare=Math.max(0,flare-dt);
+      slots.forEach(sl=>{ const it=sl.it; if(!it) return; it.flip=Math.max(0,it.flip-dt);
+        if(drag&&drag.it===it&&drag.moved) return;                   // 拿起來就不烤了
+        it.a[0]+=it.d.k*dt*(flare>0?2.2:1);
+        const b=it.a[0]; if(b>.55&&Math.random()<dt*(3+b*8)) smoke.push({x:sl.x+(Math.random()-.5)*IW()*.6,y:sl.y-10,v:18+Math.random()*16,t:0,c:b>BURN?'60,55,50':b>.95?'150,145,140':'235,232,226'});
+        if(Math.max(...it.a)>CHAR){ sl.it=null; score=Math.max(0,score-3); float('燒成炭了 −3',sl.x,sl.y,'#D84332'); sfx.bad(); }
+      });
+      if(t-lastBeg>4&&slots.some(sl=>sl.it&&sl.it.d.ok&&Math.min(...sl.it.a)>=OK)&&sayT<=0){ lastBeg=t; talk(pick(['那個好香…','（口水）','是不是烤好了？','（盯）']),'face_143',1.2); }
+      if(faceT>0){ faceT-=dt; if(faceT<=0) faceK='face_65'; }
+      if(left<=0){ left=0; phase='over'; drag=null; setTimeout(finish,500); }
+    }
+    /* 背景：夜晚的營地＋烤肉架 */
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#26304F'); g.addColorStop(.2,'#3B4A6B'); g.addColorStop(.21,'#3B5A34'); g.addColorStop(1,'#2E4A27'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const gx=W*.08, gy=H*.24, gw=W*.84, gh=H*.38;
+    const glow=ctx.createRadialGradient(W/2,gy+gh/2,20,W/2,gy+gh/2,gw*.7); glow.addColorStop(0,`rgba(255,150,60,${.35+(flare>0?.25:0)+Math.sin(t*8)*.04})`); glow.addColorStop(1,'rgba(255,150,60,0)'); ctx.fillStyle=glow; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#3A3633'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,gx,gy,gw,gh,12); ctx.fill(); ctx.stroke();
+    for(let k=0;k<26;k++){ const cx=gx+18+((k*53)%(gw-36)), cy=gy+16+((k*29)%(gh-32)); ctx.fillStyle=`rgba(255,${90+((k*37)%80)},40,${.5+.4*Math.sin(t*5+k)})`; ctx.beginPath(); ctx.arc(cx,cy,5+(k%3)*2,0,7); ctx.fill(); }   // 炭火
+    if(flare>0){ ctx.fillStyle='rgba(255,170,60,.8)'; for(let k=0;k<7;k++){ const fx=gx+gw*(k+.5)/7, fh=20+Math.sin(t*16+k)*12; ctx.beginPath(); ctx.moveTo(fx-10,gy+gh-6); ctx.quadraticCurveTo(fx,gy+gh-6-fh*3,fx+10,gy+gh-6); ctx.fill(); } }
+    ctx.strokeStyle='#8C8A86'; ctx.lineWidth=3; ctx.beginPath(); for(let x=gx+14;x<gx+gw;x+=16){ ctx.moveTo(x,gy+6); ctx.lineTo(x,gy+gh-6); } ctx.stroke();
+    slots.forEach(sl=>{ if(sl.it&&!(drag&&drag.it===sl.it&&drag.moved)) drawItem(sl.it,sl.x,sl.y); });
+    smoke=smoke.filter(p=>(p.t+=dt)<1.4); smoke.forEach(p=>{ p.y-=p.v*dt; ctx.fillStyle=`rgba(${p.c},${.55*(1-p.t/1.4)})`; ctx.beginPath(); ctx.arc(p.x+Math.sin(p.t*3+p.x)*6,p.y,6+p.t*12,0,7); ctx.fill(); });
+    /* 阿布和盤子 */
+    const A=ABU(), P=PLATE();
+    ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(P.x,P.y,P.rx,P.ry,0,0,7); ctx.fill(); ctx.stroke(); ctx.strokeStyle='rgba(43,39,35,.25)'; ctx.beginPath(); ctx.ellipse(P.x,P.y,P.rx*.7,P.ry*.62,0,0,7); ctx.stroke();
+    ctx.fillStyle='#FFFDF7'; ctx.font='bold 13px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('給家人',P.x,P.y-P.ry-14); ctx.fillText('給阿布',A.x,A.y-A.r-16);
+    const hot=drag&&drag.moved; ctx.save(); ctx.beginPath(); ctx.arc(A.x,A.y,A.r+4,0,7); ctx.fillStyle= hot? '#F2C230':'#D9772B'; ctx.fill(); ctx.strokeStyle=INK; ctx.stroke(); ctx.beginPath(); ctx.arc(A.x,A.y,A.r,0,7); ctx.clip(); const im=F[faceK]; if(im&&im.complete) ctx.drawImage(im,A.x-A.r,A.y-A.r,A.r*2,A.r*2); ctx.restore();
+    if(drag&&drag.moved) drawItem(drag.it,drag.x,drag.y-20);
+    floats=floats.filter(f=>(f.t+=dt)<1.2); floats.forEach(f=>{ ctx.globalAlpha=1-f.t/1.2; ctx.font='bold 18px "Huninn",sans-serif'; ctx.lineWidth=4; ctx.strokeStyle='#FFFDF7'; ctx.strokeText(f.txt,f.x,f.y-f.t*40); ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y-f.t*40); ctx.globalAlpha=1; });
+    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='14px "Huninn",sans-serif'; const tw=Math.min(W-20,ctx.measureText(say).width+20), sx=Math.max(8,Math.min(W-tw-8,A.x-24)), sy=A.y-A.r-58;
+      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,sx,sy,tw,28,10); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.fillText(say,sx+10,sy+14,tw-20); }
+    if(phase!=='intro'){
+      const best=S.best.bbq||0; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+      ctx.font='bold 34px "Huninn",sans-serif'; ctx.lineWidth=6; ctx.strokeStyle=INK; const txt=`${score} 分`; ctx.strokeText(txt,W/2,36); ctx.fillStyle= best&&score>best? '#F2C230':'#FFFDF7'; ctx.fillText(txt,W/2,36);
+      ctx.font='bold 13px "Huninn",sans-serif'; ctx.fillStyle= left<10? '#FF8C7A':'#FFFDF7'; ctx.fillText(`剩 ${Math.ceil(left)} 秒${best?`　最高 ${best} 分`:''}`,W/2,64); ctx.restore();
+    }
+    if(phase!=='done') raf=requestAnimationFrame(frame);
+  }
+  function finish(){
+    phase='done'; cancelAnimationFrame(raf);
+    const bones=Math.max(1,Math.min(12,Math.floor(score/20)));        // 每 20 分 1 片餅乾
+    const best=Math.max(S.best.bbq||0,score), nb=best>(S.best.bbq||0); S.best.bbq=best; save();
+    winDialog({title:`烤肉拿到 ${score} 分`, text:`${nb?'新紀錄！':`最高 ${best} 分`}<br>每 20 分換 1 片餅乾。`, bones, faceKey:'face_66', again:()=>go('bbq'), rank:{game:'bbq',score}});
+  }
+  function intro(){
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>營火烤肉</h3><p>點一下翻面，下面那面會冒煙，煙越黑越焦。<br>兩面都熟了，拖到盤子給家人，或拖給阿布。<br>阿布只能吃<b>雞肉、地瓜、蝦</b>，香腸、玉米、棉花糖、洋蔥不能給！</p><button class="btn" id="go">開始</button>`);
+    m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); slots.forEach(sl=>sl.it=null); score=0; left=TIME; t=0; spawnT=0; flareT=8; flare=0; lastBeg=0; phase='play'; last=performance.now(); talk('好香喔～','face_68',1.4); };
+  }
+  last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
+  cleanup=()=>{ phase='done'; cancelAnimationFrame(raf); ro.disconnect(); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
 /* ================= 小遊戲：阿布能不能吃？ ================= */
