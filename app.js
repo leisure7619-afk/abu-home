@@ -1692,6 +1692,19 @@ function Walk(){
   cleanup=()=>{ phase='over'; cancelAnimationFrame(raf); ro.disconnect(); document.querySelectorAll('.overlay').forEach(o=>o.remove()); };
 }
 
+/* 阿布的卡通全身圖（照阿布本人畫的，原圖面向左）：小遊戲共用 */
+const TOON={}; ['toon','tail','peek','face'].forEach(k=>{ TOON[k]=new Image(); TOON[k].src=`img/abu_${k}.webp`; });
+/* 畫阿布全身：x＝中心、foot＝腳底的高度、hh＝身高；dir 1＝面向右；rot 以腳底為軸傾斜；cut＝下面藏起來的比例（躺著、坐著） */
+function drawToon(ctx,x,foot,hh,dir=-1,rot=0,cut=0){
+  const im=TOON.toon; if(!im.complete||!im.naturalWidth) return;
+  const w=hh*im.naturalWidth/im.naturalHeight;
+  ctx.save(); ctx.translate(x,foot); ctx.rotate(rot); if(dir>0) ctx.scale(-1,1);
+  const sh=im.naturalHeight*(1-cut);
+  ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(0,0,w*.42,w*.07,0,0,7); ctx.fill();
+  ctx.drawImage(im,0,0,im.naturalWidth,sh,-w/2,-hh*(1-cut),w,hh*(1-cut));
+  ctx.restore();
+}
+
 /* ================= 小遊戲：阿布下樓梯 =================
  * 台階一直往上升，阿布往下跳。按住左邊／右邊移動，別被天花板的刺刺到，也別掉出畫面。
  * 一般台階回 1 格血；紅色刺刺台扣血；軟墊會彈起來；跑步機會把阿布帶著走；紙箱站一下就垮。比誰下到最深的樓層。 */
@@ -1766,14 +1779,13 @@ function Stairs(){
     }
     ctx.globalAlpha=1;
   }
-  function drawAbu(){
+  let facing=1;
+  function drawAbu(){                                               // 卡通阿布全身，往哪走就面向哪
     const r=R(), blink=inv>0&&Math.floor(inv*12)%2===0;
     if(blink) ctx.globalAlpha=.45;
-    const leg=on? 0 : Math.sin(t*20)*3;
-    ctx.fillStyle='#D9772B'; ctx.strokeStyle=INK; ctx.lineWidth=2;
-    [[-.5,leg],[.5,-leg]].forEach(([sx,o])=>{ ctx.beginPath(); ctx.ellipse(ax+sx*r,ay+r*.9+o,r*.22,r*.3,0,0,7); ctx.fill(); ctx.stroke(); ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(ax+sx*r,ay+r*1.12+o,r*.2,r*.12,0,0,7); ctx.fill(); ctx.stroke(); ctx.fillStyle='#D9772B'; });
-    ctx.save(); ctx.beginPath(); ctx.arc(ax,ay,r+3,0,7); ctx.fillStyle= hp<=3? '#EE8597':'#F2C230'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(ax,ay,r,0,7); ctx.clip();
-    const im=F[faceK]; if(im&&im.complete) ctx.drawImage(im,ax-r,ay-r,r*2,r*2); ctx.restore();
+    const walk=on&&Math.abs(vx)>20, bob=walk? Math.abs(Math.sin(t*16))*2.5 : 0, rot= on? (walk? Math.sin(t*16)*.05 : 0) : Math.max(-.25,Math.min(.25,vy/1800))*facing;
+    drawToon(ctx,ax,ay+r*1.15-bob,r*3.3,facing,rot);
+    if(hp<=3&&!blink){ ctx.fillStyle='rgba(238,133,151,.9)'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.fillText('💦',ax+facing*r*1.2,ay-r*1.6); }
     ctx.globalAlpha=1;
   }
   function hurt(n,line){ if(inv>0) return; hp=Math.max(0,hp-n); inv=.9; flash=.3; sfx.bad(); talk(line,'face_143',1.1); if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){} }
@@ -1798,7 +1810,7 @@ function Stairs(){
         }
       }
       plats.forEach(p=>{ if(p.broken>0) p.broken+=dt; });
-      ax=Math.max(r,Math.min(W-r,ax+vx*dt));
+      ax=Math.max(r,Math.min(W-r,ax+vx*dt)); if(vx>20) facing=1; else if(vx<-20) facing=-1;
       if(!on){
         vy=Math.min(520,vy+1000*dt); const prev=ay; ay+=vy*dt;
         for(const p of plats){
@@ -1812,7 +1824,7 @@ function Stairs(){
           }
         }
       }
-      if(ay-r<34){ hurt(5,'頭頂好刺！'); on=null; vy=160; ay=34+r; }         // 天花板的刺
+      if(ay-r*2<34){ hurt(5,'頭頂好刺！'); on=null; vy=160; ay=34+r*2; }         // 天花板的刺
       if(ay>H+r*2){ hp=0; talk('掉下去了…','face_143',1); }
       if(faceT>0){ faceT-=dt; if(faceT<=0) faceK= hp<=3? 'face_62':'face_stairs'; }
       if(hp<=0){ phase='over'; setTimeout(finish,700); }
@@ -1825,7 +1837,7 @@ function Stairs(){
     ctx.fillStyle='#5C6B7A'; ctx.fillRect(0,0,W,16); ctx.fillStyle='#8C8A86'; ctx.strokeStyle=INK; ctx.lineWidth=1.5;   // 天花板的刺
     ctx.beginPath(); for(let x=0;x<W;x+=14){ ctx.moveTo(x,16); ctx.lineTo(x+7,32); ctx.lineTo(x+14,16); } ctx.fill(); ctx.stroke();
     if(flash>0){ ctx.fillStyle=`rgba(216,67,50,${flash})`; ctx.fillRect(0,0,W,H); }
-    if(sayT>0&&phase!=='intro'){ sayT-=1/60; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+18, bx=Math.max(6,Math.min(W-tw-6,ax-tw/2)), by=Math.max(40,ay-R()-40);
+    if(sayT>0&&phase!=='intro'){ sayT-=1/60; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+18, bx=Math.max(6,Math.min(W-tw-6,ax-tw/2)), by=Math.max(40,ay-R()*2.3-34);
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,26,10): ctx.rect(bx,by,tw,26); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,bx+9,by+13); }
     if(phase!=='intro'){                                              // 大字樓層＋血條
       const best=S.best.stairs||0;
@@ -1910,7 +1922,9 @@ function Seek(){
     for(let i=all.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [all[i],all[j]]=[all[j],all[i]]; }
     const used=new Set(); tells=[];
     const take=(abu)=>{ const c=all.find(a=>!used.has(a.o)); if(!c) return; used.add(c.o); const [kind,x,y,side]=c.sp;
-      tells.push({abu,kind,x,y,side:side||1,o:c.o,dw:0,s:Math.max(.62,1-round*.035)*sc,ph:Math.random()*6}); };
+      const sz=Math.max(.62,1-round*.035)*sc*18, sd=side||1;
+      const [cx,cy]= kind==='tail'? [x+sd*sz*1.1,y-sz*1.0] : kind==='ears'? [x,y-sz*1.1] : [x,y];   // 露出來那一塊的中心（照到這裡才算）
+      tells.push({abu,kind,x,y,cx,cy,side:sd,o:c.o,dw:0,s:sz/18,ph:Math.random()*6}); };
     take(true); const nd=Math.min(3,Math.floor((round+1)/2)); for(let i=0;i<nd;i++) take(false);
     beamR=Math.max(W*.15,W*.23-round*3); roundT=0;
   }
@@ -1948,30 +1962,33 @@ function Seek(){
     if(tl.kind==='tail'){
       const wag=Math.sin(t*(abu?7:3)+tl.ph)*.25, d=tl.side;
       ctx.save(); ctx.translate(x,y); ctx.rotate(wag*d); ctx.scale(d,1);
-      if(abu){
-        ctx.lineCap='round'; ctx.strokeStyle=INK; ctx.lineWidth=s*.62+3; ctx.beginPath(); ctx.moveTo(-s*.6,0); ctx.lineTo(s*.2,0); ctx.arc(s*.2,-s*.55,s*.55,Math.PI/2,-Math.PI*1.1,true); ctx.stroke();
-        ctx.strokeStyle='#D9772B'; ctx.lineWidth=s*.62; ctx.stroke();
-        ctx.strokeStyle='#FBEBD6'; ctx.lineWidth=s*.22; ctx.beginPath(); ctx.arc(s*.2,-s*.55,s*.42,Math.PI*.6,-Math.PI*.9,true); ctx.stroke();
+      if(abu){                                                       // 阿布真的捲尾巴（卡通圖）：左半邊藏在東西後面
+        const im=TOON.tail, th=s*3.3, tw=th*im.naturalWidth/(im.naturalHeight||1);
+        if(im.complete&&im.naturalWidth) ctx.drawImage(im,-tw*.4,-th*.8,tw,th);
       }else{
         ctx.fillStyle='#7B7670'; rr(ctx,-s*.6,-s*.28,s*1.9,s*.56,s*.28); ctx.fill(); ctx.stroke();
         ctx.fillStyle='#2B2723'; for(let k=0;k<3;k++) ctx.fillRect(s*(.1+k*.42),-s*.27,s*.16,s*.54);
       }
       ctx.restore();
+    }else if(tl.kind==='ears'&&abu){                                 // 阿布從東西後面探頭：耳朵＋眉毛＋眼睛
+      const im=TOON.peek, pw=s*3.6, ph=pw*(im.naturalHeight||1)/(im.naturalWidth||1), up=Math.sin(t*2+tl.ph)>.9? -3:0;
+      if(im.complete&&im.naturalWidth) ctx.drawImage(im,x-pw/2,y-ph*.8+up,pw,ph);
     }else if(tl.kind==='ears'){
       const tw=Math.sin(t*2+tl.ph)>.93? -2:0;
       [-1,1].forEach(k=>{ const ex=x+k*s*.55;
         ctx.fillStyle= abu? '#D9772B':'#6E6A65'; ctx.beginPath(); ctx.moveTo(ex-s*.38,y+2); ctx.lineTo(ex+k*s*.08,y-s*.95+tw); ctx.lineTo(ex+s*.38,y+2); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.fillStyle= abu? '#FBEBD6':'#C9B8B0'; ctx.beginPath(); ctx.moveTo(ex-s*.18,y); ctx.lineTo(ex+k*s*.06,y-s*.6+tw); ctx.lineTo(ex+s*.18,y); ctx.closePath(); ctx.fill(); });
     }else{
-      ctx.fillStyle= abu? 'rgba(217,119,43,.9)':'rgba(110,106,101,.9)'; ctx.beginPath(); ctx.ellipse(x,y,s*1.05,s*.62,0,0,7); ctx.fill();
-      if(abu){ ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(x,y+s*.3,s*.5,s*.3,0,0,7); ctx.fill(); ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(x,y+s*.18,s*.14,0,7); ctx.fill(); }
+      if(abu){ const im=TOON.face, fw=s*3, fh=fw*(im.naturalHeight||1)/(im.naturalWidth||1); if(im.complete&&im.naturalWidth) ctx.drawImage(im,x-fw/2,y-fh/2,fw,fh); }   // 車底下探出阿布的臉
+      else { ctx.fillStyle='rgba(110,106,101,.9)'; ctx.beginPath(); ctx.ellipse(x,y,s*1.05,s*.62,0,0,7); ctx.fill(); }
       eyes(tl,1);
     }
   }
   function eyes(tl,a){                                               // 眼睛在黑暗中會反光
     if(tl.kind!=='eyes') return; const s=tl.s*18, blink=Math.sin(t*1.3+tl.ph)>.96;
     ctx.fillStyle= tl.abu? `rgba(255,190,70,${a})` : `rgba(120,255,140,${a})`;
-    [-1,1].forEach(k=>{ ctx.beginPath(); ctx.ellipse(tl.x+k*s*.42,tl.y-s*.12,s*.16,blink?1:s*.16,0,0,7); ctx.fill(); });
+    const pts= tl.abu? (()=>{ const fw=s*3, fh=fw*.808; return [[tl.x-fw/2+fw*.136,tl.y-fh/2+fh*.237],[tl.x-fw/2+fw*.426,tl.y-fh/2+fh*.237]]; })() : [[tl.x-s*.42,tl.y-s*.12],[tl.x+s*.42,tl.y-s*.12]];
+    pts.forEach(([ex,ey])=>{ ctx.beginPath(); ctx.ellipse(ex,ey,s*.16,blink?1:s*.16,0,0,7); ctx.fill(); });
   }
   function drawScene(){
     const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#1B2440'); g.addColorStop(.25,'#2E3B5C'); g.addColorStop(.27,'#3B5A34'); g.addColorStop(1,'#2E4A27'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
@@ -1988,7 +2005,7 @@ function Seek(){
     if(phase==='play'){
       left-=dt; roundT+=dt; flash=Math.max(0,flash-dt);
       for(const tl of tells.slice()){
-        if(Math.hypot(tl.x-bx,tl.y-10-by)<beamR*.55){ tl.dw+=dt;
+        if(Math.hypot(tl.cx-bx,tl.cy-by)<beamR*.55){ tl.dw+=dt;
           if(tl.dw>=DWELL){
             if(tl.abu){ found++; left+=FIND_T; phase='found'; popT=0; pop={x:tl.x,y:tl.y}; sfx.good(); bark(1); talk(pick(['被找到了…','你怎麼知道！','嘿嘿','我只是在巡邏','（尾巴出賣了我）']),1);
               if(navigator.vibrate) try{navigator.vibrate(40)}catch(e){} setTimeout(()=>{ if(phase==='found'){ round++; layout(); phase='play'; } },950); break; }
@@ -2013,10 +2030,10 @@ function Seek(){
     ctx.fillStyle='#F2A93B'; for(let k=0;k<3;k++){ const fh=14+Math.sin(t*12+k*2)*5; ctx.beginPath(); ctx.moveTo(fx-10+k*10-6,fy+8); ctx.quadraticCurveTo(fx-10+k*10,fy-fh,fx-10+k*10+6,fy+8); ctx.fill(); }
     tells.forEach(tl=>eyes(tl,.55));                                 // 黑暗中也看得到反光的眼睛
     /* 找到的光圈進度 */
-    tells.forEach(tl=>{ if(tl.dw>0&&phase==='play'){ ctx.strokeStyle='#F2C230'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(tl.x,tl.y-10,26,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,tl.dw/DWELL)); ctx.stroke(); } });
-    if(pop){ const k=Math.min(1,popT*4), r=30+k*14, py=pop.y-10-k*30;         // 阿布跳出來
-      ctx.save(); ctx.globalAlpha=phase==='found'? 1 : Math.max(0,1-popT); ctx.fillStyle='#F2C230'; ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(pop.x,py,r+3,0,7); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(pop.x,py,r,0,7); ctx.clip(); const im=F[popT<.5?'face_143':'face_66']; if(im.complete) ctx.drawImage(im,pop.x-r,py-r,r*2,r*2); ctx.restore(); if(phase==='play') pop=null; }
+    tells.forEach(tl=>{ if(tl.dw>0&&phase==='play'){ ctx.strokeStyle='#F2C230'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(tl.cx,tl.cy,26,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,tl.dw/DWELL)); ctx.stroke(); } });
+    if(pop){ const k=Math.min(1,popT*4), hop=Math.sin(Math.min(1,popT*2.2)*Math.PI)*40;   // 阿布整隻跳出來
+      ctx.save(); ctx.globalAlpha=phase==='found'? 1 : Math.max(0,1-popT); const gl=ctx.createRadialGradient(pop.x,pop.y-30,5,pop.x,pop.y-30,80); gl.addColorStop(0,'rgba(255,236,190,.5)'); gl.addColorStop(1,'rgba(255,236,190,0)'); ctx.fillStyle=gl; ctx.fillRect(pop.x-90,pop.y-120,180,180);
+      drawToon(ctx,pop.x,pop.y+20-hop,60+k*40,pop.x<W/2?1:-1); ctx.restore(); if(phase==='play') pop=null; }
     if(flash>0){ ctx.fillStyle=`rgba(216,67,50,${flash*.6})`; ctx.fillRect(0,0,W,H); }
     if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='15px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=W/2-tw/2, sy=H*.2;
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,sx,sy,tw,28,10); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(say,W/2,sy+14); }
@@ -2231,24 +2248,20 @@ function Tent(){
       corners.forEach(c=>{ if(c.on){ ctx.strokeStyle='rgba(43,39,35,.6)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(S.x+(c.x-S.x)*.5,top+S.h*.4); ctx.stroke(); } }); }
     corners.forEach(c=>{ if(c.on) drawPart('peg',c.x,c.y-6,.8); else if(next()==='peg'){ ctx.strokeStyle='#F2C230'; ctx.lineWidth=2.5; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(c.x,c.y,13,0,7); ctx.stroke(); ctx.setLineDash([]); } });
   }
-  /* 阿布：身體＋捲尾巴＋真的臉 */
+  /* 阿布：卡通全身圖（原圖面向左，dir 1＝面向右） */
+  const DH=86;                                                       // 阿布的身高
+  const mouth=()=>({x:dog.x+dog.dir*DH*.33, y:dog.y+30-DH*.43});     // 嘴巴的位置（叼營釘、咬帳篷）
   function drawDog(){
-    if(dog.st==='away'&&(dog.x<-40||dog.x>W+40)) return;
-    const x=dog.x, y=dog.y, d=dog.dir, lie=dog.st==='lie', bob=dog.run? Math.sin(t*22)*2.5:0, r=22;
-    ctx.save(); ctx.lineWidth=2; ctx.strokeStyle=INK;
-    if(!lie){ ctx.fillStyle='#D9772B'; [-.55,-.2,.25,.6].forEach((k,i)=>{ const o=dog.run? Math.sin(t*22+i*1.7)*5:0; ctx.beginPath(); ctx.ellipse(x+k*34*-d,y+14+o*.3,4.5,9,0,0,7); ctx.fill(); ctx.stroke(); }); }
-    ctx.fillStyle='#D9772B'; ctx.beginPath(); ctx.ellipse(x-d*14,y+(lie?10:2)+bob,lie?34:30,lie?12:16,0,0,7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#FBEBD6'; ctx.beginPath(); ctx.ellipse(x-d*10,y+(lie?14:9)+bob,lie?22:18,lie?5:6,0,0,7); ctx.fill();
-    const tx=x-d*42, ty=y-6+bob+(lie?8:0), wag=Math.sin(t*(dog.st==='tug'?20:9))*.3;              // 捲尾巴
-    ctx.save(); ctx.translate(tx,ty); ctx.rotate(wag); ctx.scale(-d,1); ctx.lineCap='round'; ctx.lineWidth=10; ctx.strokeStyle=INK; ctx.beginPath(); ctx.arc(0,-6,7,Math.PI*.6,Math.PI*2.3); ctx.stroke(); ctx.lineWidth=7; ctx.strokeStyle='#D9772B'; ctx.stroke(); ctx.lineWidth=3; ctx.strokeStyle='#FBEBD6'; ctx.beginPath(); ctx.arc(0,-6,5,Math.PI*.9,Math.PI*1.9); ctx.stroke(); ctx.restore();
-    const hx=x+d*18, hy=y-(lie?2:14)+bob;
-    ctx.fillStyle= dog.st==='tug'? '#EE8597':'#F2C230'; ctx.beginPath(); ctx.arc(hx,hy,r+3,0,7); ctx.fill(); ctx.stroke();
-    ctx.save(); ctx.beginPath(); ctx.arc(hx,hy,r,0,7); ctx.clip(); const im=F[dog.face]; if(im&&im.complete) ctx.drawImage(im,hx-r,hy-r,r*2,r*2); ctx.restore();
-    if(dog.carry) drawPart('peg',hx+d*14,hy+14,.7);
-    if(dog.st==='tug'){ ctx.strokeStyle='#D9772B'; ctx.lineWidth=3; ctx.setLineDash([5,4]); const S=SITE(); ctx.beginPath(); ctx.moveTo(hx,hy+10); ctx.lineTo(S.x+(dog.x<S.x?-1:1)*S.w*.35,S.y+S.h*.3); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle='rgba(43,39,35,.2)'; ctx.fillRect(hx-26,hy-r-16,52,6); ctx.fillStyle='#D84332'; ctx.fillRect(hx-26,hy-r-16,52*Math.min(1,dog.tug/2.6),6); }
-    if(dog.st==='lie'){ for(let k=0;k<5;k++){ ctx.fillStyle= k<dog.pets? '#EE8597':'rgba(43,39,35,.2)'; ctx.beginPath(); ctx.arc(hx-24+k*12,hy-r-12,4.5,0,7); ctx.fill(); } }
-    ctx.restore();
+    if(dog.st==='away'&&(dog.x<-60||dog.x>W+60)) return;
+    const lie=dog.st==='lie'||dog.st==='done', tug=dog.st==='tug', bob=dog.run? Math.abs(Math.sin(t*18))*3:0;
+    const rot= tug? -dog.dir*(.14+Math.sin(t*30)*.03) : dog.run? Math.sin(t*18)*.05 : 0;
+    drawToon(ctx,dog.x,dog.y+30-bob+(lie?6:0),DH,dog.dir,rot,lie?.36:0);   // 躺著：腳藏起來
+    const m=mouth();
+    if(dog.carry){ ctx.save(); ctx.translate(m.x,m.y+4); ctx.rotate(Math.PI/2); drawPart('peg',0,0,.75); ctx.restore(); }
+    if(tug){ const S=SITE(); ctx.strokeStyle='#D9772B'; ctx.lineWidth=3; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.moveTo(m.x,m.y+4); ctx.lineTo(S.x+(dog.x<S.x?-1:1)*S.w*.35,S.y+S.h*.3); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(43,39,35,.2)'; ctx.fillRect(dog.x-26,dog.y-DH+14,52,6); ctx.fillStyle='#D84332'; ctx.fillRect(dog.x-26,dog.y-DH+14,52*Math.min(1,dog.tug/2.6),6); }
+    if(dog.st==='lie'){ for(let k=0;k<5;k++){ ctx.fillStyle= k<dog.pets? '#EE8597':'rgba(43,39,35,.2)'; ctx.beginPath(); ctx.arc(dog.x-24+k*12,dog.y-DH*.62,4.5,0,7); ctx.fill(); } }
+    if(lie){ ctx.fillStyle='#5C6B7A'; ctx.font='bold 14px sans-serif'; ctx.textAlign='left'; ctx.fillText('z z',dog.x-dog.dir*DH*.1+Math.sin(t*2)*3,dog.y-DH*.55-(t*8%8)); }
   }
   /* 阿布的搗蛋：叼營釘跑、躺地墊、咬帳篷往後拉 */
   function mischief(){
@@ -2277,7 +2290,7 @@ function Tent(){
   const hearts2=(x,y)=>float('♥',x+(Math.random()-.5)*30,y,'#EE8597');
   const pos=e=>{ const r=wrap.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
   wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); if(phase!=='play') return; const [x,y]=pos(e);
-    if(dog.st!=='away'&&Math.hypot(x-(dog.x+dog.dir*6),y-dog.y)<44){ tapDog(); return; }
+    if(dog.st!=='away'&&Math.hypot(x-dog.x,y-(dog.y-12))<50){ tapDog(); return; }
     let best=null, bd=40; parts.forEach(p=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){ bd=d; best=p; } });
     if(best){ drag={p:best,ox:best.x-x,oy:best.y-y}; try{ wrap.setPointerCapture(e.pointerId); }catch(x){} } });
   wrap.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=pos(e); drag.p.x=Math.max(14,Math.min(W-14,x+drag.ox)); drag.p.y=Math.max(20,Math.min(H-14,y+drag.oy)); });
@@ -2328,10 +2341,10 @@ function Tent(){
     ctx.fillStyle='#3E6B25'; ctx.beginPath(); ctx.moveTo(0,H*.18); for(let x=0;x<=W;x+=W/6) ctx.lineTo(x,H*.18-14-((x*11)%18)); ctx.lineTo(W,H*.18); ctx.fill();
     ctx.fillStyle='rgba(138,98,66,.25)'; rr(ctx,6,H*.75,W-12,H*.24,14); ctx.fill();                // 放東西的地方
     ctx.save(); if(shake>0) ctx.translate(Math.sin(t*60)*4,0); drawTent(); ctx.restore();
-    const ents=[...parts.map(p=>({y:p.y,f:()=>{ const hint=next()===p.k&&phase==='play'; if(hint){ ctx.fillStyle='rgba(242,194,48,.35)'; ctx.beginPath(); ctx.arc(p.x,p.y,24+Math.sin(t*6)*2,0,7); ctx.fill(); } drawPart(p.k,p.x,p.y,drag&&drag.p===p?1.2:1); }})),{y:dog.y+14,f:drawDog}];
+    const ents=[...parts.map(p=>({y:p.y,f:()=>{ const hint=next()===p.k&&phase==='play'; if(hint){ ctx.fillStyle='rgba(242,194,48,.35)'; ctx.beginPath(); ctx.arc(p.x,p.y,24+Math.sin(t*6)*2,0,7); ctx.fill(); } drawPart(p.k,p.x,p.y,drag&&drag.p===p?1.2:1); }})),{y:dog.y+30,f:drawDog}];
     ents.sort((a,b)=>a.y-b.y).forEach(e=>e.f());
     floats=floats.filter(f=>(f.t+=dt)<1.1); floats.forEach(f=>{ ctx.globalAlpha=1-f.t/1.1; ctx.font='bold 16px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#FFFDF7'; ctx.strokeText(f.txt,f.x,f.y-f.t*36); ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y-f.t*36); ctx.globalAlpha=1; });
-    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=Math.max(8,Math.min(W-tw-8,(dog.st==='away'?W/2:dog.x)-tw/2)), sy=Math.max(84,(dog.st==='away'?H*.2:dog.y-70));
+    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=Math.max(8,Math.min(W-tw-8,(dog.st==='away'?W/2:dog.x)-tw/2)), sy=Math.max(84,(dog.st==='away'?H*.2:dog.y-DH-14));
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,sx,sy,tw,28,10); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,sx+10,sy+14); }
     if(phase!=='intro'){
       const best=S.best.tent||0; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
