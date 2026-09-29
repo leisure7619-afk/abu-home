@@ -1698,9 +1698,10 @@ const TOON={}; ['toon','tail','peek','face'].forEach(k=>{ TOON[k]=new Image(); T
 function drawToon(ctx,x,foot,hh,dir=-1,rot=0,cut=0){
   const im=TOON.toon; if(!im.complete||!im.naturalWidth) return;
   const w=hh*im.naturalWidth/im.naturalHeight;
-  ctx.save(); ctx.translate(x,foot); ctx.rotate(rot); if(dir>0) ctx.scale(-1,1);
+  ctx.save(); ctx.translate(x,foot);
+  ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(0,0,w*.42,w*.07,0,0,7); ctx.fill();   // 影子不跟著傾斜
+  ctx.rotate(rot); if(dir>0) ctx.scale(-1,1);
   const sh=im.naturalHeight*(1-cut);
-  ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(0,0,w*.42,w*.07,0,0,7); ctx.fill();
   ctx.drawImage(im,0,0,im.naturalWidth,sh,-w/2,-hh*(1-cut),w,hh*(1-cut));
   ctx.restore();
 }
@@ -2223,7 +2224,7 @@ function Tent(){
     for(let i=kinds.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [kinds[i],kinds[j]]=[kinds[j],kinds[i]]; }
     parts=kinds.map((k,i)=>{ const col=i%5, row=Math.floor(i/5); return {k,x:W*(.12+col*.19),y:H*(.8+row*.11)}; });
     placed=[]; const S=SITE(); corners=[[S.x-S.w/2,S.y+S.h*.45],[S.x+S.w/2,S.y+S.h*.45],[S.x-S.w*.38,S.y+S.h*.72],[S.x+S.w*.38,S.y+S.h*.72]].map(([x,y])=>({x,y,on:false}));
-    Object.assign(dog,{st:'away',x:-60,y:H*.3,tx:-60,ty:H*.3,wait:4,carry:null,pets:0,tug:0,run:0});
+    Object.assign(dog,{st:'away',x:-50,y:H*.4,tx:W*.2,ty:H*.4,wait:5,carry:null,pets:0,tug:0,run:1,sniff:0});
   }
   /* 東西的樣子 */
   function drawPart(k,x,y,sc=1){
@@ -2252,15 +2253,17 @@ function Tent(){
   const DH=86;                                                       // 阿布的身高
   const mouth=()=>({x:dog.x+dog.dir*DH*.33, y:dog.y+30-DH*.43});     // 嘴巴的位置（叼營釘、咬帳篷）
   function drawDog(){
-    if(dog.st==='away'&&(dog.x<-60||dog.x>W+60)) return;
-    const lie=dog.st==='lie'||dog.st==='done', tug=dog.st==='tug', bob=dog.run? Math.abs(Math.sin(t*18))*3:0;
-    const rot= tug? -dog.dir*(.14+Math.sin(t*30)*.03) : dog.run? Math.sin(t*18)*.05 : 0;
+    if(dog.x<-60||dog.x>W+60) return;
+    const lie=dog.st==='lie'||dog.st==='done', tug=dog.st==='tug', sniff=dog.st==='away'&&dog.sniff>0, slow=dog.st==='away'&&!sniff&&dog.run;
+    const bob= slow? Math.abs(Math.sin(t*9))*2 : dog.run? Math.abs(Math.sin(t*18))*3 : 0;
+    const rot= tug? -dog.dir*(.14+Math.sin(t*30)*.03) : sniff? dog.dir*(.13+Math.sin(t*14)*.02) : slow? Math.sin(t*9)*.03 : dog.run? Math.sin(t*18)*.05 : 0;   // 聞東西：頭低下去
     drawToon(ctx,dog.x,dog.y+30-bob+(lie?6:0),DH,dog.dir,rot,lie?.36:0);   // 躺著：腳藏起來
     const m=mouth();
     if(dog.carry){ ctx.save(); ctx.translate(m.x,m.y+4); ctx.rotate(Math.PI/2); drawPart('peg',0,0,.75); ctx.restore(); }
     if(tug){ const S=SITE(); ctx.strokeStyle='#D9772B'; ctx.lineWidth=3; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.moveTo(m.x,m.y+4); ctx.lineTo(S.x+(dog.x<S.x?-1:1)*S.w*.35,S.y+S.h*.3); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle='rgba(43,39,35,.2)'; ctx.fillRect(dog.x-26,dog.y-DH+14,52,6); ctx.fillStyle='#D84332'; ctx.fillRect(dog.x-26,dog.y-DH+14,52*Math.min(1,dog.tug/2.6),6); }
     if(dog.st==='lie'){ for(let k=0;k<5;k++){ ctx.fillStyle= k<dog.pets? '#EE8597':'rgba(43,39,35,.2)'; ctx.beginPath(); ctx.arc(dog.x-24+k*12,dog.y-DH*.62,4.5,0,7); ctx.fill(); } }
+    if(sniff&&Math.sin(t*7)>0){ const m2=mouth(); ctx.strokeStyle='rgba(43,39,35,.5)'; ctx.lineWidth=1.5; for(let k=0;k<2;k++){ ctx.beginPath(); ctx.arc(m2.x+dog.dir*(10+k*6),m2.y+16,4+k*3,-.8,.8); ctx.stroke(); } }
     if(lie){ ctx.fillStyle='#5C6B7A'; ctx.font='bold 14px sans-serif'; ctx.textAlign='left'; ctx.fillText('z z',dog.x-dog.dir*DH*.1+Math.sin(t*2)*3,dog.y-DH*.55-(t*8%8)); }
   }
   /* 阿布的搗蛋：叼營釘跑、躺地墊、咬帳篷往後拉 */
@@ -2277,21 +2280,37 @@ function Tent(){
       dog.st='goSteal'; dog.target=tgt; dog.tx=tgt.x; dog.ty=tgt.y-10;
     }else if(kind==='lie'){ dog.st='goLie'; dog.tx=S.x; dog.ty=S.y+S.h*.45; }
     else { dog.st='goTug'; const side=Math.random()<.5?-1:1; dog.tx=Math.max(64,Math.min(W-64,S.x+side*(S.w*.5+40))); dog.ty=S.y+S.h*.35; }
-    dog.x= Math.random()<.5? -40 : W+40; dog.y=H*(.25+Math.random()*.45);
+    dog.sniff=0; if(dog.x<0||dog.x>W){ dog.x= Math.random()<.5? -40 : W+40; dog.y=H*(.25+Math.random()*.45); }
+  }
+  /* 沒搗蛋的時候：在草地上到處亂走、低頭亂聞（不靠近帳篷、不走進放東西的地方） */
+  function wanderTo(far){
+    const S=SITE();
+    for(let k=0;k<20;k++){ const x=50+Math.random()*(W-100), y=H*(.3+Math.random()*.38);
+      if(Math.abs(x-S.x)<S.w*.55&&Math.abs(y-(S.y+S.h*.3))<S.h*.9) continue;
+      if(far&&Math.hypot(x-dog.x,y-dog.y)<W*.35) continue;
+      dog.tx=x; dog.ty=y; return; }
+    dog.tx=W*.15; dog.ty=H*.35;
+  }
+  function idle(dt){
+    if(dog.sniff>0){ dog.sniff-=dt; dog.run=0; if(dog.sniff<=0) wanderTo(); return; }
+    dog.run=1;
+    if(runTo(dt,dog.x<0||dog.x>W? 160 : 70)){ dog.sniff=1+Math.random()*1.8; dog.run=0;
+      if(Math.random()<.45&&sayT<=0) talk(pick(['（嗅嗅）','（嗅嗅嗅）','這裡有別的狗的味道','（聞到烤肉味）','（挖草）','（抓癢）']),1); }
   }
   function runTo(dt,sp){ const dx=dog.tx-dog.x, dy=dog.ty-dog.y, d=Math.hypot(dx,dy); if(Math.abs(dx)>2) dog.dir=dx>0?1:-1; if(d<6) return true; const k=Math.min(1,sp*dt/d); dog.x+=dx*k; dog.y+=dy*k; return false; }
-  function leave(line){ dog.st='away'; dog.run=1; dog.tx= dog.x<W/2? -60 : W+60; dog.ty=dog.y; dog.wait=Math.max(3.5,8-placed.length*.35)+Math.random()*3; dog.carry=null; if(line) talk(line,1.2); }
+  function leave(line){ dog.st='away'; dog.run=1; dog.sniff=0; wanderTo(true); dog.wait=Math.max(3.5,8-placed.length*.35)+Math.random()*3; dog.carry=null; if(line) talk(line,1.2); }
   function tapDog(){
     if(dog.st==='lie'){ dog.pets++; dog.face='face_60'; hearts2(dog.x,dog.y-30); tone(620+dog.pets*60,.08,'triangle',.1); if(dog.pets>=5){ dog.face='face_66'; leave('好啦，我讓開'); } else talk(pick(['這裡好舒服','再摸一下','不要趕我']),.9); return; }
     if(dog.st==='runPeg'||dog.st==='goSteal'&&dog.carry){ parts.push({k:'peg',x:Math.max(20,Math.min(W-20,dog.x)),y:Math.max(H*.25,Math.min(H*.93,dog.y+10))}); dog.carry=null; sfx.good(); leave('哼，還你'); return; }
     if(dog.st==='tug'){ dog.tug=0; sfx.good(); dog.face='face_143'; leave('被發現了…'); return; }
-    if(dog.st==='goLie'||dog.st==='goTug'||dog.st==='goSteal'){ sfx.pop(); leave('（假裝路過）'); }
+    if(dog.st==='goLie'||dog.st==='goTug'||dog.st==='goSteal'){ sfx.pop(); leave('（假裝路過）'); return; }
+    if(dog.st==='away'){ hearts2(dog.x,dog.y-40); tone(700,.08,'triangle',.08); talk(pick(['（搖尾巴）','嘿嘿','（蹭蹭）']),.8); }
   }
   const hearts2=(x,y)=>float('♥',x+(Math.random()-.5)*30,y,'#EE8597');
   const pos=e=>{ const r=wrap.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
   wrap.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); if(phase!=='play') return; const [x,y]=pos(e);
-    if(dog.st!=='away'&&Math.hypot(x-dog.x,y-(dog.y-12))<50){ tapDog(); return; }
     let best=null, bd=40; parts.forEach(p=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){ bd=d; best=p; } });
+    if(Math.hypot(x-dog.x,y-(dog.y-12))<50&&(dog.st!=='away'||!best)){ tapDog(); return; }
     if(best){ drag={p:best,ox:best.x-x,oy:best.y-y}; try{ wrap.setPointerCapture(e.pointerId); }catch(x){} } });
   wrap.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=pos(e); drag.p.x=Math.max(14,Math.min(W-14,x+drag.ox)); drag.p.y=Math.max(20,Math.min(H-14,y+drag.oy)); });
   const drop=()=>{ if(!drag) return; const p=drag.p; drag=null; const S=SITE();
@@ -2313,7 +2332,7 @@ function Tent(){
     const dt=Math.min(.033,(ts-last)/1000||0); last=ts;
     if(phase==='play'){
       t+=dt; shake=Math.max(0,shake-dt);
-      if(dog.st==='away'){ if(!runTo(dt,260)){} else dog.run=0; dog.wait-=dt; if(dog.wait<=0) mischief(); }
+      if(dog.st==='away'){ idle(dt); dog.wait-=dt; if(dog.wait<=0) mischief(); }
       else if(dog.st==='goSteal'){ let tg=dog.target;
         if(tg&&parts.includes(tg)){ dog.tx=tg.x; dog.ty=tg.y-10; } else if(tg&&tg.on===false&&!parts.includes(tg)&&corners.includes(tg)){ leave(); }
         else if(tg&&!parts.includes(tg)&&!corners.includes(tg)){ leave(); }
@@ -2344,7 +2363,7 @@ function Tent(){
     const ents=[...parts.map(p=>({y:p.y,f:()=>{ const hint=next()===p.k&&phase==='play'; if(hint){ ctx.fillStyle='rgba(242,194,48,.35)'; ctx.beginPath(); ctx.arc(p.x,p.y,24+Math.sin(t*6)*2,0,7); ctx.fill(); } drawPart(p.k,p.x,p.y,drag&&drag.p===p?1.2:1); }})),{y:dog.y+30,f:drawDog}];
     ents.sort((a,b)=>a.y-b.y).forEach(e=>e.f());
     floats=floats.filter(f=>(f.t+=dt)<1.1); floats.forEach(f=>{ ctx.globalAlpha=1-f.t/1.1; ctx.font='bold 16px "Huninn",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#FFFDF7'; ctx.strokeText(f.txt,f.x,f.y-f.t*36); ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y-f.t*36); ctx.globalAlpha=1; });
-    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=Math.max(8,Math.min(W-tw-8,(dog.st==='away'?W/2:dog.x)-tw/2)), sy=Math.max(84,(dog.st==='away'?H*.2:dog.y-DH-14));
+    if(sayT>0&&phase!=='intro'){ sayT-=dt; ctx.font='14px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, sx=Math.max(8,Math.min(W-tw-8,dog.x-tw/2)), sy=Math.max(84,dog.y-DH-14);
       ctx.fillStyle='#FFFDF7'; ctx.strokeStyle=INK; ctx.lineWidth=2; rr(ctx,sx,sy,tw,28,10); ctx.fill(); ctx.stroke(); ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,sx+10,sy+14); }
     if(phase!=='intro'){
       const best=S.best.tent||0; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
