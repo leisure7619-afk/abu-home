@@ -251,17 +251,19 @@ const fullNow=()=>Math.max(0,Math.min(1,NEEDS.f-(Date.now()-NEEDS.ft)/NEED_EAT))
 const waterNow=()=>Math.max(0,Math.min(1,NEEDS.w-(Date.now()-NEEDS.wt)/NEED_DRINK));
 const peeNow=()=>Math.max(0,Math.min(1,(NEEDS.p||0)+(Date.now()-(NEEDS.pt||Date.now()))/NEED_PEE));
 const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, mustPee=()=>peeNow()>=.75, needy=()=>hungry()||thirsty()||mustPee();
-function setNeeds(n){ if(n&&typeof n.f==='number'){ NEEDS=n; lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
+let careBusy=0;
+/* 還有自己按的沒回來時，先別被較舊的雲端資料蓋掉 */
+function setNeeds(n){ if(n&&typeof n.f==='number'&&!careBusy){ NEEDS=n; lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
 async function careAbu(kind){                                 // 先在手機上更新，再告訴雲端（全家同步）
   const now=Date.now();
   if(kind==='walk'){ NEEDS=Object.assign({},NEEDS,{p:0,pt:now,pb:S.me||''}); }
   else {
-    const p=Math.min(1,peeNow()+(kind==='eat'?.05:.15));
+    const p=Math.min(1,peeNow()+(kind==='eat'?.05:.04));
     if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||'',p,pt:now}); }
-    else { NEEDS=Object.assign({},NEEDS,{w:1,wt:now,wb:S.me||'',p,pt:now}); }
+    else { NEEDS=Object.assign({},NEEDS,{w:Math.min(1,waterNow()+.25),wt:now,wb:S.me||'',p,pt:now}); }
   }
   lsSet('abu-needs',NEEDS); renderNeeds();
-  if(API_URL){ try{ const j=await api({action:kind,by:S.me||''}); setNeeds(j.needs); }catch(e){} }
+  if(API_URL){ careBusy++; let j=null; try{ j=await api({action:kind,by:S.me||''}); }catch(e){} careBusy--; if(j) setNeeds(j.needs); }
 }
 const ago=t=>{ const m=Math.round((Date.now()-t)/60000); return m<1?'剛剛': m<60? `${m} 分鐘前` : m<1440? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
 function renderNeeds(){
@@ -519,9 +521,9 @@ function Home(){
   /* 喝水：免費，直接補滿 */
   $('#aDrink').onclick=()=>{
     ac(); resetIdle(); wake();
-    if(waterNow()>=.9){ mood(pick(FACES.look),1400); say('還不渴喔'); return; }
+    if(waterNow()>=.95){ mood(pick(FACES.look),1400); say(pick(['喝飽了～','還不渴喔','（舔舔嘴巴走開）'])); return; }
     const d=h(`<div class="flying-bone drop">💧</div>`); fx.appendChild(d); setTimeout(()=>d.remove(),650);
-    setTimeout(()=>{ careAbu('drink'); mood('face_60',1600); say(pick(['咕嚕咕嚕～','好好喝！','水好冰涼'])); for(let k=0;k<4;k++) tone(300+k*40,.08,'sine',.08,120,k*.12); },450);
+    setTimeout(()=>{ careAbu('drink'); mood('face_60',1600); say(waterNow()>=.95? '喝飽了！' : pick(['咕嚕咕嚕～','好好喝！','水好冰涼','還要還要','（舔水舔得到處都是）'])); for(let k=0;k<4;k++) tone(300+k*40,.08,'sine',.08,120,k*.12); },450);
   };
   /* 去散步：阿布一定在外面上廁所；剛上過就不肯出門 */
   $('#aWalk').onclick=()=>{
