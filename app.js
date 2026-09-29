@@ -244,6 +244,234 @@ function walkPhotos(){
   if(all.length>=3) return all;                                   // 散步照不管解鎖與否都能在這裡看到
   return mine.concat(all,SAMPLE.filter(p=>['s41','s49','s53','s69','s126'].includes(p.id)));
 }
+/* ================= 阿布的散步路：Google 街景，從家門口出發 =================
+ * 首頁「去散步」：有街景金鑰（config.js 的 MAPS_KEY）、設定分頁填了「散步起點」，就用街景陪阿布走到他常尿尿的地方。
+ * 尿尿點是雲端用「上廁所」照片的 GPS 算出來的；走到附近阿布會聞一聞、抬腳，然後跳出在那裡拍的照片。
+ * 任何一步不行（沒網路、暗號不對、附近沒有街景、今天次數用完）就退回原本的散步照片。 */
+const MAPS_KEY=(window.ABU_CONFIG&&window.ABU_CONFIG.MAPS_KEY||'').trim();
+const SV_DAY=20;                   // 每支手機每天最多開 20 次街景（每開一次 Google 算一次，家裡怎麼玩都在免費額度內）
+const SV_NEAR=18;                  // 走到離尿尿點 18 公尺內就算到了
+const svToday=()=>S.sv&&S.sv.d===todayKey()? S.sv.n : 0;
+const canStreet=()=>!!(MAPS_KEY&&API_URL&&CONFIG.walk&&svToday()<SV_DAY);
+const geoD=(a,b)=>{ const k=Math.PI/180, x=(b[1]-a[1])*k*Math.cos((a[0]+b[0])/2*k), y=(b[0]-a[0])*k; return Math.hypot(x,y)*6371000; };
+const geoB=(a,b)=>{ const k=Math.PI/180, x=(b[1]-a[1])*Math.cos((a[0]+b[0])/2*k), y=b[0]-a[0]; return (Math.atan2(x,y)/k+360)%360; };
+const angDiff=(a,b)=>((a-b)%360+540)%360-180;
+let mapsP=null, svAuthFail=null;
+window.gm_authFailure=()=>{ if(svAuthFail) svAuthFail(); };          // 金鑰被擋（網域不對、沒開 API）
+function loadMaps(){
+  if(window.google&&google.maps&&google.maps.StreetViewPanorama) return Promise.resolve();
+  if(mapsP) return mapsP;
+  mapsP=new Promise((ok,no)=>{
+    const t=setTimeout(()=>{ mapsP=null; no(new Error('timeout')); },15000);
+    window.__abuMaps=async()=>{
+      try{ if(google.maps.importLibrary) await google.maps.importLibrary('streetView'); clearTimeout(t); ok(); }
+      catch(e){ clearTimeout(t); mapsP=null; no(e); }
+    };
+    const s=document.createElement('script');
+    s.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_KEY)}&v=weekly&language=zh-TW&region=TW&loading=async&callback=__abuMaps`;
+    s.async=true; s.onerror=()=>{ clearTimeout(t); mapsP=null; s.remove(); no(new Error('load')); };
+    document.head.appendChild(s);
+  });
+  return mapsP;
+}
+/* 家人暗號：只問一次，記在這支手機 */
+function askWalkCode(wrong){
+  return new Promise(res=>{
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>${wrong?'暗號不對喔':'家人暗號'}</h3>
+      <p>阿布要帶你走家附近的路。先說家人才知道的暗號，這支手機只問這一次。</p>
+      <label class="field">暗號<input id="wcode" maxlength="40" autocomplete="off"></label>
+      <div class="row"><button class="btn" id="wok">出發</button><button class="btn ghost" data-close>改看照片</button></div>`,()=>res(null));
+    const i=m.el.querySelector('#wcode'); setTimeout(()=>i.focus(),60);
+    const go=()=>{ const v=i.value.trim(); if(!v){ i.focus(); return; } m.el.remove(); res(v); };
+    m.el.querySelector('#wok').onclick=go; i.onkeydown=e=>{ if(e.key==='Enter') go(); };
+  });
+}
+function spotName(s,i,door){
+  if(door) return '家門口';
+  if(i===0&&s.n>=2) return '阿布的老地方';
+  return s.n>=2? '常尿的地方' : '路過尿一下';
+}
+async function streetWalk(fallback,after){
+  const wait=h(`<div class="sv sv-wait"><div class="sv-load"><img src="${face('face_65')}" alt=""><b>阿布在門口等你…</b><small>（叼牽繩）</small></div></div>`);
+  app.appendChild(wait);
+  const fail=msg=>{ wait.remove(); if(msg) toast(msg,2600); fallback(); };
+  let d=null;
+  for(let k=0;k<3;k++){
+    try{ const r=await fetch(API_URL+'?action=walk&code='+encodeURIComponent(S.walkCode||'')); d=await r.json(); }
+    catch(e){ return fail('連不上雲端，改看散步照片'); }
+    if(d&&d.need==='code'){
+      wait.hidden=true; const c=await askWalkCode(k>0||!!S.walkCode); wait.hidden=false;
+      if(!c) return fail(); S.walkCode=c; save(); d=null; continue;
+    }
+    break;
+  }
+  if(!d) return fail('暗號不對，改看散步照片');
+  if(!d.ok||!Array.isArray(d.home)) return fail('還沒設定散步起點，改看散步照片');
+  try{ await loadMaps(); }catch(e){ return fail('街景載入失敗，改看散步照片'); }
+  const G=google.maps, sv=new G.StreetViewService(), home=d.home;
+  const findPano=(ll,r)=>sv.getPanorama({location:{lat:ll[0],lng:ll[1]},radius:r,source:G.StreetViewSource.OUTDOOR}).then(x=>x&&x.data).catch(()=>null);
+  const spots=(d.spots||[]).map(s=>Object.assign({},s,{ll:[s.lat,s.lng],done:false,pano:undefined}));
+  spots.forEach((s,i)=>{ s.name=spotName(s,i,geoD(home,s.ll)<=12); });
+  let start=await findPano(home,60);
+  for(const s of spots){ if(start) break; start=await findPano(s.ll,40); }
+  if(!start) return fail('家附近沒有街景，改看散步照片');
+  S.sv={d:todayKey(),n:svToday()+1}; save();                          // 開一次街景＝ Google 算一次
+  await Promise.all(spots.map(s=>findPano(s.ll,30).then(x=>{ s.pano=x&&x.location? x.location.pano : null; })));
+  wait.remove();
+
+  /* ---- 畫面 ---- */
+  const o=h(`<div class="sv">
+    <div class="sv-pano" id="svPano"></div>
+    <div class="sv-top">
+      <button class="back" id="svHome" aria-label="回家"><svg><use href="#i-home"/></svg></button>
+      <div class="sv-title"><b>阿布的散步路</b><small id="svInfo">走了 0 公尺</small></div>
+    </div>
+    <div class="sv-chips" id="svChips"></div>
+    <button class="sv-guide" id="svGuide" hidden><span class="sv-arr" id="svArr">↑</span><span id="svGuideT"></span></button>
+    <canvas class="sv-abu" id="svAbu"></canvas>
+    <div class="sv-bar"><button class="btn sv-go" id="svGo">往前走</button></div>
+  </div>`);
+  app.appendChild(o);
+  const $o=s=>o.querySelector(s);
+  const P=new G.StreetViewPanorama($o('#svPano'),{
+    pano:start.location.pano, pov:{heading:0,pitch:-4}, zoom:0,
+    addressControl:false, fullscreenControl:false, motionTracking:false, motionTrackingControl:false,
+    zoomControl:false, panControl:false, linksControl:true, clickToGo:true, showRoadLabels:false, enableCloseButton:false,
+  });
+  let prev=null, walked=0, teleport=false, closed=false, target=null, info='', visited=0, busy=false, backHome=false, away=0;
+  const sLL=start.location&&start.location.latLng? [start.location.latLng.lat(),start.location.latLng.lng()] : home;
+  const firstTarget=spots.filter(s=>s.pano&&geoD(sLL,s.ll)>SV_NEAR).sort((a,b)=>geoD(sLL,a.ll)-geoD(sLL,b.ll))[0];
+  if(firstTarget) P.setPov({heading:geoB(sLL,firstTarget.ll),pitch:-4});   // 一開始就面向最近的尿尿點
+  const cur=()=>{ const p=P.getPosition(); return p? [p.lat(),p.lng()] : home; };
+
+  /* 尿尿點小卡：點了就走過去（有街景的話），沒街景就直接看照片 */
+  function chips(){
+    $o('#svChips').innerHTML=spots.map((s,i)=>`<button class="sv-chip${s.done?' done':''}${s.pano===null?' none':''}" data-i="${i}">
+      <span>${s.done?'✓':'🌳'}</span><b>${esc(s.name)}</b><small>${s.pano===null?'沒有街景':`${s.n} 次`}</small></button>`).join('');
+    $o('#svChips').querySelectorAll('.sv-chip').forEach(b=>b.onclick=()=>{
+      const s=spots[+b.dataset.i]; sfx.pop();
+      if(busy) return;
+      if(s.pano){ teleport=true; target=s; P.setPano(s.pano); setTimeout(()=>faceTo(s.ll),350); }
+      else memories(s);
+    });
+  }
+  function faceTo(ll,anim=true){
+    const want=geoB(cur(),ll), from=P.getPov().heading;
+    if(!anim){ P.setPov({heading:want,pitch:-4}); return; }
+    const d=angDiff(want,from), t0=performance.now();
+    const step=ts=>{ if(closed) return; const k=Math.min(1,(ts-t0)/500), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2; P.setPov({heading:from+d*e,pitch:-4}); if(k<1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  /* 下一個要去的地方：最近的、還沒去過、有街景的尿尿點；都去過就回家 */
+  function pickTarget(){
+    const c=cur(), left=spots.filter(s=>!s.done&&s.pano);
+    if(!left.length) return visited? {ll:home,name:'回家',home:true} : null;
+    return left.sort((a,b)=>geoD(c,a.ll)-geoD(c,b.ll))[0];
+  }
+  function guide(){
+    const g=$o('#svGuide');
+    if(!target||target.done) target=pickTarget();
+    if(!target){ g.hidden=true; return; }
+    const c=cur(), dist=Math.round(geoD(c,target.ll)), rel=angDiff(geoB(c,target.ll),P.getPov().heading);
+    g.hidden=false; $o('#svArr').style.transform=`rotate(${rel}deg)`;
+    $o('#svGuideT').textContent= target.home? (dist<=15? '到家了！' : `回家 ${dist} 公尺`) : dist<=SV_NEAR? `${target.name}到了` : `${target.name} ${dist} 公尺`;
+  }
+  function upd(){ $o('#svInfo').textContent=`走了 ${Math.round(walked)} 公尺${visited?` · 巡了 ${visited} 個地盤`:''}${info?` · ${info}`:''}`; guide(); }
+
+  /* ---- 阿布的背影（跟「陪阿布散步」同一張去背照片，捲尾巴會搖） ---- */
+  const cv=$o('#svAbu'), ctx=cv.getContext('2d');
+  const WALK=new Image(); WALK.src='img/abu_walk.webp'; const LEG=new Image(); LEG.src='img/abu_leg.webp';
+  const FW=107, FH=240, NF=9, COLLAR=[76,69], HEADTOP=[90,18], LW=23, LH=59, LEGL=[42.9,178.4], LEGR=[71.6,174.6];
+  let W=0, H=0, t=0, last=performance.now(), raf=0, moveT=0, sniffT=0, peeT=0, say='', sayT=0, drops=[];
+  const talk=(s,sec=1.6)=>{ say=s; sayT=sec; };
+  function fit(){ const r=cv.getBoundingClientRect(), dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  const ro=new ResizeObserver(fit); ro.observe(cv); fit();
+  function frame(ts){
+    const dt=Math.min(.05,(ts-last)/1000||0); last=ts; t+=dt;
+    moveT=Math.max(0,moveT-dt); sniffT=Math.max(0,sniffT-dt); peeT=Math.max(0,peeT-dt); sayT=Math.max(0,sayT-dt);
+    ctx.clearRect(0,0,W,H);
+    const hgt=Math.max(120,Math.min(200,H*.62)), sc=hgt/FH, fw=FW*sc;
+    const ax=W*.3, fy=H-18-(sniffT>0? -8 : 0);
+    const wag= peeT>0? .15 : sniffT>0? .5 : moveT>0? 1 : .8, hz= moveT>0? 14 : 8;
+    const fr=Math.max(0,Math.min(NF-1,Math.round((Math.sin(t*hz)*wag+1)/2*(NF-1))));
+    const step=t*9, bob= moveT>0? Math.abs(Math.sin(step))*4 : 0, sway= moveT>0? Math.sin(step)*.035 : peeT>0? -.07 : 0;
+    const cx=ax-fw/2+COLLAR[0]*sc, cy=fy-hgt+COLLAR[1]*sc-bob;          // 牽繩接到你手上（畫面下方中間）
+    ctx.strokeStyle='#B8322A'; ctx.lineWidth=3; ctx.setLineDash([5,3]); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.quadraticCurveTo((cx+W/2)/2,H-6,W/2,H+10); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(ax,fy,fw*.45,hgt*.05,0,0,7); ctx.fill();
+    ctx.save(); ctx.translate(ax,fy-bob); ctx.rotate(sway); if(sniffT>0) ctx.scale(1,.96);
+    if(LEG.complete&&LEG.naturalWidth){
+      const lift= moveT>0? Math.sin(step)*10*sc : 0, ox=-fw/2, oy=-hgt, up= peeT>0? 18*sc : 0;   // 尿尿：抬一隻後腳
+      ctx.drawImage(LEG,ox+LEGL[0]*sc,oy+LEGL[1]*sc-Math.max(0,lift),LW*sc,LH*sc);
+      ctx.save(); ctx.translate(ox+(LEGR[0]+LW)*sc+up*.4,oy+LEGR[1]*sc-Math.max(0,-lift)-up); ctx.rotate(peeT>0? -.5:0); ctx.scale(-1,1); ctx.drawImage(LEG,0,0,LW*sc,LH*sc); ctx.restore();
+    }
+    if(WALK.complete&&WALK.naturalWidth) ctx.drawImage(WALK,fr*FW,0,FW,FH,-fw/2,-hgt,fw,hgt);
+    ctx.restore();
+    if(peeT>0&&Math.random()<.5) drops.push({x:ax+fw*.28,y:fy-hgt*.3,vy:40+Math.random()*30,vx:20+Math.random()*25,v:1});
+    drops=drops.filter(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=260*dt; p.v-=dt*1.6; ctx.globalAlpha=Math.max(0,p.v); ctx.fillStyle='#F2D25A'; ctx.beginPath(); ctx.arc(p.x,Math.min(p.y,fy),2.4,0,7); ctx.fill(); ctx.globalAlpha=1; return p.v>0; });
+    if(sayT>0&&say){
+      const hx=ax-fw/2+HEADTOP[0]*sc, hy=fy-hgt+HEADTOP[1]*sc-bob;
+      ctx.font='15px "Huninn",sans-serif'; const tw=ctx.measureText(say).width+20, bx=Math.max(8,Math.min(W-tw-8,hx-tw/2)), by=Math.max(4,hy-40);
+      ctx.fillStyle='#FFFDF7'; ctx.strokeStyle='#2B2723'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect? ctx.roundRect(bx,by,tw,30,12) : ctx.rect(bx,by,tw,30); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#2B2723'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(say,bx+10,by+15);
+    }
+    if(!closed) raf=requestAnimationFrame(frame);
+  }
+  raf=requestAnimationFrame(frame);
+
+  /* ---- 到了尿尿點：聞一聞 → 抬腳 → 看在這裡拍的照片 ---- */
+  function arrive(s){
+    s.done=true; busy=true; visited++; chips();
+    moveT=0; sniffT=1.6; talk(pick(['（嗅嗅）這裡有我的味道','（嗅嗅嗅）','（聞很久）','這根是我的！']),1.6);
+    setTimeout(()=>{ if(closed) return; peeT=1.5; talk('（抬腳）',1.4); tone(520,.12,'sine',.07,-120); tone(430,.14,'sine',.06,-100,.15); },1600);
+    setTimeout(()=>{ if(closed) return; busy=false; addLove(1); memories(s,true); },3300);
+  }
+  function memories(s,fresh){
+    const list=(s.ph||[]).map(x=>Object.assign({taken:x.t},pool().find(p=>p.id===x.id)||{id:x.id}));
+    const m=modal(`<h3>${esc(s.name)}</h3><p>${fresh?'（尿好了）':''}阿布在這裡尿過 ${s.n} 次</p>
+      <div class="sv-mem${list.length===1?' one':''}">${list.map(p=>`<figure>${pimg(p,500,'alt="" loading="lazy"')}<figcaption>${p.taken?fmtDate(p.taken):''}</figcaption></figure>`).join('')}</div>
+      <button class="btn" data-close>${fresh?'繼續走':'好'}</button>`,()=>{ if(closed) return; if(fresh) talk(pickTarget()&&pickTarget().home? '地盤都巡完了！回家吧' : '走吧，下一個',1.8); target=null; upd(); });
+    if(fresh) m.el.querySelector('.dialog').insertAdjacentHTML('afterbegin','<span class="sv-plus">+1 好感</span>');
+  }
+
+  /* ---- 街景事件 ---- */
+  P.addListener('position_changed',()=>{
+    const c=cur();
+    if(prev&&!teleport){ const dd=geoD(prev,c); if(dd<80) walked+=dd; moveT=.9; }
+    teleport=false; prev=c;
+    away=Math.max(away,geoD(c,home));
+    if(!busy){ const s=spots.find(s=>!s.done&&geoD(c,s.ll)<=SV_NEAR); if(s){ busy=true; setTimeout(()=>{ busy=false; if(!closed&&!s.done&&geoD(cur(),s.ll)<=SV_NEAR+6) arrive(s); },600); } }
+    if(visited&&!backHome&&away>40&&geoD(c,home)<=15){ backHome=true; talk('到家了！（甩甩毛）',2); $o('#svHome').classList.add('pulse'); }
+    upd();
+  });
+  P.addListener('pano_changed',()=>{                                   // 顯示這張街景是哪時拍的（查資料不收費）
+    const id=P.getPano(); if(!id) return;
+    sv.getPanorama({pano:id}).then(x=>{ const dt=x&&x.data&&x.data.imageDate; if(dt){ const [y,mo]=String(dt).split('-'); info=`街景 ${y} 年 ${+mo} 月`; upd(); } }).catch(()=>{});
+  });
+  P.addListener('pov_changed',guide);
+  svAuthFail=()=>{ if(closed) return; close(true); toast('街景金鑰有問題，改看散步照片',2600); fallback(); };
+
+  $o('#svGo').onclick=()=>{
+    if(busy){ talk(pick(['等一下，我在聞','（拉不動）','（四腳釘在地上）']),1.2); return; }   // 聞東西、尿尿時拉不走
+    const L=P.getLinks()||[], hd=P.getPov().heading; let best=null, bd=999;
+    L.forEach(l=>{ const a=Math.abs(angDiff(l.heading,hd)); if(a<bd){ bd=a; best=l; } });
+    if(!best||bd>75){ talk(pick(['這邊沒有路，轉個方向','（歪頭）要往哪走？']),1.6); tone(240,.2,'sine',.07,-40); return; }
+    P.setPano(best.pano); P.setPov({heading:best.heading,pitch:-4});
+  };
+  $o('#svGuide').onclick=()=>{ if(target) faceTo(target.ll); };
+  function close(silent){
+    if(closed) return; closed=true; svAuthFail=null;
+    cancelAnimationFrame(raf); ro.disconnect();
+    try{ G.event.clearInstanceListeners(P); P.setVisible(false); }catch(e){}
+    o.remove();
+    if(silent) return;
+    const m=Math.round(walked);
+    modal(`<img class="face-img" src="${face(visited?'face_60':'face_66')}" alt=""><h3>${visited?'散步好開心！':'回家囉'}</h3>
+      <p>${m?`今天陪阿布走了 ${m} 公尺`:'今天在門口看了一下'}${visited?`，巡了 ${visited} 個地盤`:''}。</p><button class="btn" data-close>摸摸阿布</button>`,after);
+  }
+  $o('#svHome').onclick=()=>{ sfx.pop(); close(); };
+  chips(); upd();
+  setTimeout(()=>{ if(!closed) talk(spots.some(s=>s.pano)? '出發囉！跟著箭頭走' : '出發囉！',1.8); },400);
+}
 /* 阿布的飢餓、口渴、想尿尿：全家共用（存在雲端），12 小時從飽到餓、8 小時從不渴到很渴、10 小時憋到滿（吃喝會更快） */
 const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3, PEE_SHARE=.7;
 let NEEDS=lsGet('abu-needs')||{f:1,ft:Date.now(),fb:'',w:1,wt:Date.now(),wb:''};
@@ -533,10 +761,13 @@ function Home(){
     bark(2);
     const p=pick(walkPhotos()), urgent=mustPee();
     careAbu('walk'); addLove(2);
-    modal(`<h3>${urgent?'終於尿出來了～':'出門散步囉！'}</h3>${pimg(p,1200,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}${p.cap?`<p>${esc(p.cap)}</p>`:''}<button class="btn" data-close>回家</button>`,()=>{
+    const after=()=>{
+      if(current!=='home') return;
       tier=Math.max(tier,2); combo=Math.max(combo,LADDER[2].at); renderJoy();
       setFace(pick(LADDER[tier].faces)); say('散步好開心！',true); hearts(5); scheduleDecay();
-    });
+    };
+    const photo=()=>modal(`<h3>${urgent?'終於尿出來了～':'出門散步囉！'}</h3>${pimg(p,1200,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}${p.cap?`<p>${esc(p.cap)}</p>`:''}<button class="btn" data-close>回家</button>`,after);
+    if(canStreet()) streetWalk(photo,after); else photo();     // 有街景就從家門口真的走出去
   };
 
   /* 進場 */

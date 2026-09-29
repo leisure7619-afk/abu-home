@@ -599,6 +599,39 @@
   .need.low span{color:var(--bad)}
   #needWho{grid-column:1/-1;font-size:11px;color:var(--ink-soft)}
   #needWho:empty{display:none}
+
+  /* 阿布的散步路（Google 街景） */
+  .sv{position:absolute;inset:0;z-index:19;background:#2B2723;overflow:hidden}
+  .sv-wait{display:grid;place-items:center;background:var(--lawn)}
+  .sv-load{display:flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--font-display);font-size:19px}
+  .sv-load img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:6px solid var(--collar);animation:float 2.4s ease-in-out infinite}
+  .sv-load small{font-family:var(--font-body);font-size:13px;color:var(--ink-soft)}
+  .sv-pano{position:absolute;inset:0}
+  .sv-top{position:absolute;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0px));display:flex;gap:10px;align-items:center;pointer-events:none}
+  .sv-top>*{pointer-events:auto}
+  .sv-top .back.pulse{animation:svpulse 1s ease-in-out infinite;background:var(--collar)}
+  @keyframes svpulse{50%{transform:scale(1.15)}}
+  .sv-title{background:rgba(255,253,247,.94);border-radius:16px;padding:6px 12px;line-height:1.25;box-shadow:0 2px 8px rgba(0,0,0,.18);min-width:0}
+  .sv-title b{font-family:var(--font-display);font-weight:400;font-size:17px;display:block}
+  .sv-title small{font-size:12px;color:var(--ink-soft);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sv-chips{position:absolute;left:0;right:0;top:calc(66px + env(safe-area-inset-top,0px));display:flex;gap:8px;overflow-x:auto;padding:0 12px 4px;scrollbar-width:none}
+  .sv-chips::-webkit-scrollbar{display:none}
+  .sv-chip{flex:none;display:flex;align-items:center;gap:5px;background:rgba(255,253,247,.94);border-radius:999px;padding:6px 12px 6px 8px;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+  .sv-chip b{font-weight:600}
+  .sv-chip small{color:var(--ink-soft);font-size:11px}
+  .sv-chip.done{background:var(--collar)}
+  .sv-chip.none{opacity:.75}
+  .sv-guide{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:8px;background:var(--ink);color:var(--paper);border-radius:999px;padding:7px 14px 7px 8px;font-size:14px;box-shadow:0 3px 10px rgba(0,0,0,.3);white-space:nowrap}
+  .sv-arr{width:26px;height:26px;border-radius:50%;background:var(--collar);color:var(--ink);display:grid;place-items:center;font-weight:700;transition:transform .15s}
+  .sv-abu{position:absolute;left:0;right:0;bottom:70px;height:42%;width:100%;pointer-events:none}
+  .sv-bar{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;pointer-events:none}
+  .sv-go{pointer-events:auto;min-width:150px}
+  .sv-mem{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%}
+  .sv-mem.one{grid-template-columns:1fr}
+  .sv-mem figure{margin:0;display:flex;flex-direction:column;gap:2px}
+  .sv-mem img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;background:var(--urajiro)}
+  .sv-mem figcaption{font-size:12px;color:var(--ink-soft)}
+  .sv-plus{align-self:flex-end;background:var(--tongue);color:#fff;border-radius:999px;padding:2px 10px;font-size:12px;margin-bottom:-8px}
 </style>
 </head>
 <body>
