@@ -38,9 +38,12 @@ document.addEventListener('error',e=>{
   t.dataset.fb='1'; t.src=`https://drive.google.com/thumbnail?id=${t.dataset.fid}&sz=w${t.dataset.w}`;
 },true);
 
-/* 飛機耳照片：AI 從雲端的照片裡找出阿布開飛機耳的，記下頭的位置；摸頭時裁出頭部輪流出現 */
+/* 飛機耳照片：AI 從雲端的照片裡找出阿布開飛機耳的，記下頭的位置；摸頭時裁出頭部輪流出現。
+ * 全部飛機耳照片排成一輪：最近 14 天新上傳的排最前面，其他打散；先載好 4 張，每用掉一張就再載下一張，
+ * 一輪看完再重新打散，所以每張都會輪到。本地那張只在雲端照片還沒載好時才用。 */
 const EARS_LOCAL={src:'img/face_ears.jpg',size:'100% 100%',pos:'50% 50%'};
-let EARS=[], earsKey=null;
+let EARS_ALL=[], EARS_Q=[], EARS_READY=[], earsKey=null, earsLoading=0, earLast=null, earLocalOk=false;
+{ const im=new Image(); im.onload=()=>{ earLocalOk=true; }; im.src=EARS_LOCAL.src; }   // 圖真的載得到才用，不會出現空白圓圈
 function earCrop(b,W,H){
   if(!W||!H) return null;
   const x0=b[1]/1000*W, x1=b[3]/1000*W, y0=b[0]/1000*H, y1=b[2]/1000*H;
@@ -49,18 +52,36 @@ function earCrop(b,W,H){
   const L=Math.max(0,Math.min(W-S,(x0+x1)/2-S/2)), T=Math.max(0,Math.min(H-S,(y0+y1)/2-S/2));
   return { size:`${W/S*100}% ${H/S*100}%`, pos:`${W>S+1? L/(W-S)*100:50}% ${H>S+1? T/(H-S)*100:50}%` };
 }
+function earRound(first){
+  const fresh=EARS_ALL.filter(p=>first&&Date.now()-(p.t||0)<14*864e5).sort((a,b)=>(b.t||0)-(a.t||0));
+  const rest=EARS_ALL.filter(p=>!fresh.includes(p)&&!(earLast&&earLast.id===p.id));
+  for(let i=rest.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [rest[i],rest[j]]=[rest[j],rest[i]]; }
+  return fresh.concat(rest);
+}
 function loadEars(){
   const list=PH.filter(p=>!isVid(p)&&Array.isArray(p.ears)&&p.ears.length===4);
   const key=list.map(p=>p.id).join();
   if(key===earsKey) return; earsKey=key;
-  const got=[]; EARS=got;
-  { const im=new Image(); im.onload=()=>got.unshift(EARS_LOCAL); im.src=EARS_LOCAL.src; }   // 圖真的載得到才用，不會出現空白圓圈
-  list.sort(()=>Math.random()-.5).slice(0,12).forEach(p=>{     // 每次隨機挑 12 張先載好，摸的時候才不會等
+  EARS_ALL=list; EARS_Q=earRound(true); EARS_READY=[]; fillEars();
+}
+function fillEars(){
+  while(EARS_READY.length+earsLoading<4&&EARS_ALL.length){
+    if(!EARS_Q.length) EARS_Q=earRound(false);                  // 一輪看完：重新打散再來一輪
+    const p=EARS_Q.shift(), k=earsKey; if(!p) break;
+    earsLoading++;
     const im=new Image();
-    im.onload=()=>{ const c=earCrop(p.ears,im.naturalWidth,im.naturalHeight); if(c) got.push(Object.assign({src:im.src},c)); };
-    im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; } };
+    const done=c=>{ if(k!==earsKey) return; earsLoading--; if(c) EARS_READY.push(Object.assign({id:p.id,src:im.src},c)); fillEars(); };
+    im.onload=()=>done(earCrop(p.ears,im.naturalWidth,im.naturalHeight));
+    im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; } else done(null); };
     im.src=purl(p,800);
-  });
+    if(EARS_ALL.length<=EARS_READY.length+earsLoading) break;  // 照片很少時不要同一張重複載
+  }
+}
+/* 下一張飛機耳照片：用掉就補下一張；還沒載好就沿用上一張，再不行用本地那張 */
+function nextEar(){
+  const e=EARS_READY.shift(); fillEars();
+  if(e){ earLast=e; return e; }
+  return earLast || (earLocalOk? EARS_LOCAL : null);
 }
 
 /* ---------------- 存檔 ---------------- */
@@ -616,11 +637,11 @@ function Home(){
   const earA=h('<div class="earpic" aria-hidden="true"></div>'), earB=h('<div class="earpic" aria-hidden="true"></div>');
   abu.appendChild(earA); abu.appendChild(earB); abu.appendChild(petHand);
   loadEars();
-  let earI=Math.floor(Math.random()*9);
   /* 摸頭時換下一張飛機耳照片（兩層交叉淡入，不會閃） */
   function showEars(){
-    if(!EARS.length){ hideEars(); setFace(FACES.happy[0]); return; }      // 飛機耳照片都還沒載好：先用開心的臉
-    const e=EARS[earI++%EARS.length], lay=earA.classList.contains('on')? earB: earA, other=lay===earA? earB: earA;
+    const e=nextEar();
+    if(!e){ hideEars(); setFace(FACES.happy[0]); return; }                // 飛機耳照片都還沒載好：先用開心的臉
+    const lay=earA.classList.contains('on')? earB: earA, other=lay===earA? earB: earA;
     lay.style.backgroundImage=`url("${e.src}")`; lay.style.backgroundSize=e.size; lay.style.backgroundPosition=e.pos;
     lay.classList.add('on'); other.classList.remove('on');
   }
@@ -706,7 +727,7 @@ function Home(){
       bliss=true; clearTimeout(decay); clearTimeout(revert); showEars(); say('（飛機耳開啟）好舒服…'); renderJoy();
       abu.classList.add('bliss'); petHand.classList.add('on'); let n=0;
       const blissLines=['（飛機耳開啟）好舒服…','再往左邊一點','耳朵後面也要','（頭一直往你手上靠）','不要停～','（整隻融化了）'];
-      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) petLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0){ say(blissLines[(n/6)%blissLines.length|0]); if(EARS.length>1) showEars(); } },450);
+      blissT=setInterval(()=>{ hearts(1); if(++n%3===0) petLove(1); if(n%5===0) tone(330,.25,'sine',.06,-40); if(n%6===0){ say(blissLines[(n/6)%blissLines.length|0]); showEars(); } },450);
     },650);
   }
   function holdEnd(){
