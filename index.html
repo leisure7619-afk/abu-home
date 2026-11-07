@@ -602,6 +602,24 @@
   .need.low span{color:var(--bad)}
   #needWho{grid-column:1/-1;font-size:11px;color:var(--ink-soft)}
   #needWho:empty{display:none}
+  .machines{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:2px}
+  .machines[hidden]{display:none}
+  .mach{display:flex;align-items:center;gap:6px;background:var(--urajiro);border-radius:12px;padding:5px 8px;text-align:left;min-width:0}
+  .mach span{font-size:17px;line-height:1}
+  .mach div{min-width:0;display:flex;flex-direction:column;line-height:1.25}
+  .mach b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mach small{font-size:11px;color:var(--ink-soft);white-space:nowrap;font-weight:400}
+  .mach.bad{background:#FBE1DC;box-shadow:inset 0 0 0 2px var(--bad);animation:pulse 1.6s ease-in-out infinite}
+  .mach.bad small{color:var(--bad);font-weight:700}
+  .mach.shake{animation:machshake .45s ease-in-out}
+  @keyframes machshake{20%{transform:translateX(-4px) rotate(-2deg)}40%{transform:translateX(4px) rotate(2deg)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+  .mlog{grid-column:1/-1;text-align:left;font-size:12px;line-height:1.4;color:var(--ink);background:none;padding:2px 2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mlog span{color:var(--ink-soft);margin-right:6px}
+  .mach-log{list-style:none;margin:0;padding:0;width:100%;max-height:46vh;overflow:auto;text-align:left;display:flex;flex-direction:column;gap:8px}
+  .mach-log li{display:flex;gap:8px;font-size:14px;line-height:1.4}
+  .mach-log li>span{font-size:18px}
+  .mach-log li small{display:block;font-size:11px;color:var(--ink-soft)}
+  .mach-log li.hot div{font-weight:700}
 
   /* 阿布的散步路（Google 街景） */
   .sv{position:absolute;inset:0;z-index:19;background:#2B2723;overflow:hidden}

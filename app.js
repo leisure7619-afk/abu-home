@@ -150,6 +150,7 @@ async function loadPhotos(fresh){
     if(j.feeds){ FEEDS=j.feeds; lsSet('abu-feeds',FEEDS); }
     if(Array.isArray(j.reels)){ REELS=j.reels; REELS_ON_SERVER=true; lsSet('abu-reels',REELS); } else REELS_ON_SERVER=false;
     if(j.needs) setNeeds(j.needs);
+    if(j.auto) setAuto(j.auto);
     if(current==='home'){ lastAgeLv=0; renderLove(); }            // 照片到了，換上這個年紀的阿布
     lsSet('abu-photos',{photos:PH,config:CONFIG});
     loadEars(); loadToday();
@@ -537,6 +538,66 @@ async function careAbu(kind){                                 // 先在手機上
   lsSet('abu-needs',NEEDS); renderNeeds();
   if(API_URL){ careBusy++; let j=null; try{ j=await api({action:kind,by:S.me||''}); }catch(e){} careBusy--; if(j) setNeeds(j.needs); }
 }
+/* 自動餵食機、自動飲水機（雲端照時間自己跑，偶爾罷工，要家人修） */
+let AUTO=lsGet('abu-auto')||null, onAuto=null;
+const MACH={feeder:{name:'餵食機',ico:'🍽️'},water:{name:'飲水機',ico:'🚰'}};
+const AUTO_BAD={jam:'卡住了',steal:'被撞翻了',flood:'倒光了',power:'沒電了',noise:'怪怪的',spill:'水碗翻了'};
+const AUTO_FIX={jam:'拍一下',steal:'扶起來',flood:'裝回去',power:'換電池',noise:'拍一下',spill:'擦乾'};
+const AUTO_SAY={'feeder:jam':'（盯著餵食機）……今天的呢？','feeder:steal':'（打嗝）是它自己倒下來的，不是我','feeder:flood':'今天的餅乾一次全部出來了！（打嗝）',
+  'feeder:power':'餵食機睡著了，叫不醒…','feeder:noise':'（躲在沙發後面）那台機器剛剛在叫…','water:spill':'地板怎麼濕濕的？不是我喔',
+  'water:power':'飲水機不會動了…（舔空碗）','water:gulp':'（打嗝）水好好喝…','feeder:new':'家裡多了兩台機器！（聞聞聞）'};
+const AUTO_NAG={feeder:['（盯著餵食機）','（用鼻子推餵食機）','餵食機壞掉了…誰來修一下','（趴在餵食機旁邊等）'],water:['（舔空水碗）','飲水機不會動了…','（用腳撥水碗）']};
+function setAuto(a){ if(!a||!a.feeder) return; AUTO=a; lsSet('abu-auto',AUTO); if(current==='home') renderMachines(); if(onAuto) onAuto(); }
+const autoBad=()=>AUTO? ['feeder','water'].filter(m=>AUTO[m]&&AUTO[m].bad) : [];
+function nextMeal(){ const hs=(AUTO&&AUTO.hours)||[8,18], h=new Date().getHours(); const n=hs.find(x=>x>h); return `${String(n===undefined?hs[0]:n).padStart(2,'0')}:00`; }
+function whenLabel(t){
+  const d=new Date(t), now=new Date(), day=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime();
+  const diff=Math.round((day(now)-day(d))/864e5), hm=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return diff===0? `今天 ${hm}` : diff===1? `昨天 ${hm}` : `${d.getMonth()+1}/${d.getDate()} ${hm}`;
+}
+const logText=e=>String(e.text||'').replace(/^\d\d:\d\d /,'');
+/* 首頁上最近一則好笑的事（罷工、偷吃、修好），沒有就顯示最近一次出餐 */
+function autoLatest(){
+  if(!AUTO||!AUTO.log||!AUTO.log.length) return null;
+  const L=AUTO.log.slice().reverse(), dayAgo=Date.now()-36*3600e3;
+  return L.find(e=>e.k!=='ok'&&e.k!=='wait'&&e.t>dayAgo) || L[0];
+}
+function renderMachines(){
+  const box=$('#machines'); if(!box) return;
+  if(!AUTO||!AUTO.feeder){ box.hidden=true; return; }
+  box.hidden=false;
+  const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m];
+    return a.bad? `<button class="mach bad" data-m="${m}"><span>${M.ico}</span><div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`
+      : `<button class="mach" data-m="${m}"><span>${M.ico}</span><div><b>${M.name}</b><small>${m==='feeder'?`下一餐 ${nextMeal()}`:'運轉中'}</small></div></button>`; };
+  const e=autoLatest();
+  box.innerHTML=chip('feeder')+chip('water')+(e?`<button class="mlog" id="mlog"><span>${whenLabel(e.t)}</span>${esc(logText(e))}</button>`:'');
+  box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m; if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b); else autoLog(); });
+  const ml=box.querySelector('#mlog'); if(ml) ml.onclick=autoLog;
+}
+function autoLog(){
+  const L=(AUTO&&AUTO.log||[]).slice().reverse();
+  modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[8,18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出餐，飲水機每 3 小時補水。偶爾會罷工，看到了幫忙修一下。</p>
+    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}"><span>${(MACH[e.m]||MACH.feeder).ico}</span><div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
+    <button class="btn" data-close>好</button>`);
+}
+let homeSay=null;
+async function fixMachine(m,el){
+  if(!AUTO||!AUTO[m]||!AUTO[m].bad) return;
+  const M=MACH[m], verb=AUTO[m].fix||'拍了一下', now=Date.now(), me=S.me||'';
+  if(el){ el.classList.add('shake'); }
+  tone(180,.08,'square',.06,0); tone(140,.1,'square',.05,0,.09);           // 喀啦喀啦
+  /* 先在手機上修好（雲端回來再以雲端為準） */
+  AUTO=Object.assign({},AUTO,{[m]:{bad:'',since:0,fix:''},log:(AUTO.log||[]).concat([{t:now,m,k:'fix',by:me,text:`${me||'你'}${verb}，${m==='feeder'?'餵食機吐出 2 片':'飲水機又開始嘩啦啦'}`}])});
+  if(m==='feeder') NEEDS=Object.assign({},NEEDS,{f:Math.max(.8,fullNow()),ft:now,fb:me});
+  else NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:Math.max(.7,waterNow()),wt:now,wb:me});
+  lsSet('abu-auto',AUTO); lsSet('abu-needs',NEEDS);
+  setTimeout(()=>{
+    renderNeeds(); addLove(1); toast(`${M.name}修好了！+1 好感`);
+    if(homeSay) homeSay(m==='feeder'? '喀啦！餅乾出來了！（尾巴狂搖）' : '嘩啦啦～有水了！（咕嚕咕嚕）');
+  },450);
+  if(API_URL){ careBusy++; let j=null; try{ j=await api({action:'fix',machine:m,by:me}); }catch(e){} careBusy--;
+    if(j&&j.ok){ if(j.needs) setNeeds(j.needs); if(j.auto) setAuto(j.auto); } }
+}
 const ago=t=>{ const m=Math.round((Date.now()-t)/60000); return m<1?'剛剛': m<60? `${m} 分鐘前` : m<1440? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
 function renderNeeds(){
   const box=$('#needs'); if(!box) return;
@@ -547,6 +608,7 @@ function renderNeeds(){
   pe.querySelector('i').style.width=(p*100)+'%'; pe.classList.toggle('low',p>=.75); pe.classList.toggle('mid',p>=.5&&p<.75);
   const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${ago(NEEDS.pt)}帶去尿尿`].filter(Boolean).join('・');
   box.querySelector('#needWho').textContent= who || (f<.25||w<.25||p>=.75? '阿布在等人照顧…' : '');
+  renderMachines();
 }
 
 /* ================= 主畫面 ================= */
@@ -634,7 +696,7 @@ function Home(){
   const s=h(`<section class="screen">
     <div id="lostBox"></div>
     <div class="love" id="love"><div class="agepic" id="agePic"></div><span class="lv">Lv.1</span><span class="title"></span><span class="num"></span><div class="bar"><i></i></div></div>
-    <div class="needs" id="needs"><div class="need" id="needF"><span>🍖 飽足</span><div class="nbar"><i></i></div></div><div class="need" id="needW"><span>💧 水分</span><div class="nbar"><i></i></div></div><div class="need" id="needP"><span>🌳 尿尿</span><div class="nbar"><i></i></div></div><small id="needWho"></small></div>
+    <div class="needs" id="needs"><div class="need" id="needF"><span>🍖 飽足</span><div class="nbar"><i></i></div></div><div class="need" id="needW"><span>💧 水分</span><div class="nbar"><i></i></div></div><div class="need" id="needP"><span>🌳 尿尿</span><div class="nbar"><i></i></div></div><small id="needWho"></small><div class="machines" id="machines" hidden></div></div>
     <div class="stage">
       <div class="bubble" id="bubble">汪！</div>
       <div class="abu" id="abu" role="button" tabindex="0" aria-label="摸摸阿布"><img id="abuImg" alt="阿布"></div>
@@ -823,6 +885,16 @@ function Home(){
   /* 進場 */
   const g=greeting();
   renderJoy();
+  homeSay=t=>{ if(state==='sleep') return; say(t,true); hearts(2); };
+  /* 機器出了什麼事（自己還沒看過的）：阿布招呼完再說 */
+  const autoNews=()=>{
+    if(!AUTO||!AUTO.log) return;
+    const e=AUTO.log.slice().reverse().find(e=>e.k!=='ok'&&e.k!=='wait'&&e.k!=='fix'&&e.t>(S.autoSeen||0)&&Date.now()-e.t<2*864e5);
+    const seen=Math.max(S.autoSeen||0,...AUTO.log.map(e=>e.t)); if(seen!==S.autoSeen){ S.autoSeen=seen; save(); }
+    if(!e) return;
+    setTimeout(()=>{ if(current!=='home'||state==='sleep') return; say(AUTO_SAY[e.m+':'+e.k]||logText(e),true); },2600);
+  };
+  onAuto=autoNews; autoNews();
   if(g.mood==='night'){ state='sleep'; setFace(FACES.sleep); abu.appendChild(zzz); say(g.line); }
   else if(g.mood==='miss'){ setFace('face_143'); say(g.line,true); setTimeout(()=>{ setFace('face_60'); hearts(8); bark(2); tier=2; combo=LADDER[2].at; renderJoy(); scheduleDecay(); },1400); }
   else { setFace(FACES.normal); say(g.line); }
@@ -835,9 +907,9 @@ function Home(){
     setTimeout(()=>{ addBones(g.gift); toast(g.missed? `阿布把藏起來的 ${g.gift} 片餅乾都給你了` : `阿布叼來今天的 ${g.gift} 片餅乾`,2400); },g.mood==='miss'?2200:700);
   }
   resetIdle();
-  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
+  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
   const needT=setInterval(renderNeeds,30000);
-  cleanup=()=>{ onToday=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
+  cleanup=()=>{ onToday=null; onAuto=null; homeSay=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
 
 /* ================= 小遊戲清單 ================= */
