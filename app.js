@@ -77,6 +77,28 @@ function fillEars(){
     if(EARS_ALL.length<=EARS_READY.length+earsLoading) break;  // 照片很少時不要同一張重複載
   }
 }
+/* 今日阿布：首頁平常的臉每天從雲端換一張（全家同一張）。只挑看得到大臉的照片（AI 記的頭位置），
+ * 裁出頭部放進圓框；開心、睡覺、張望等表情還是用原本的照片。載不到就退回內建那張。 */
+let TODAY=null, todayFor='', onToday=null;
+function loadToday(){
+  const day=todayKey();
+  const list=PH.filter(p=>!isVid(p)&&!p.sample&&p.cat!=='上廁所'&&Array.isArray(p.head)&&p.head.length===4&&(p.head[2]-p.head[0])*(p.head[3]-p.head[1])>=90000)
+    .sort((a,b)=>a.id<b.id?-1:1);
+  const key=day+'|'+list.length;
+  if(key===todayFor) return; todayFor=key;
+  if(!list.length) return;
+  let h=2166136261; for(const c of day){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); }
+  const start=(h>>>0)%list.length;
+  const tryAt=k=>{
+    if(k>=Math.min(6,list.length)||todayFor!==key) return;               // 最多試 6 張
+    const p=list[(start+k)%list.length], im=new Image();
+    im.onload=()=>{ if(todayFor!==key) return; const c=earCrop(p.head,im.naturalWidth,im.naturalHeight);
+      if(!c) return tryAt(k+1); TODAY=Object.assign({id:p.id,src:im.src,taken:p.taken},c); if(onToday) onToday(); };
+    im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; } else tryAt(k+1); };
+    im.src=purl(p,800);
+  };
+  tryAt(0);
+}
 /* 下一張飛機耳照片：用掉就補下一張；還沒載好就沿用上一張，再不行用本地那張 */
 function nextEar(){
   const e=EARS_READY.shift(); fillEars();
@@ -130,7 +152,7 @@ async function loadPhotos(fresh){
     if(j.needs) setNeeds(j.needs);
     if(current==='home'){ lastAgeLv=0; renderLove(); }            // 照片到了，換上這個年紀的阿布
     lsSet('abu-photos',{photos:PH,config:CONFIG});
-    loadEars();
+    loadEars(); loadToday();
   }catch(e){
     PH_STATE = PH.length? 'cached':'fail';
     if(!PH.length) toast('連不上雲端相簿，先用內建照片');
@@ -630,13 +652,20 @@ function Home(){
   const img=$('#abuImg'), abu=$('#abu'), bubble=$('#bubble'), fx=$('#fx'), joy=$('#joy');
   let state='normal', revert=null, idle=null, combo=0, tier=-1, decay=null, lastTap=0, bigParty=0;
   let holdT=null, blissT=null, bliss=false;
-  const setFace=k=>{ if(img.dataset.k===k) return; img.dataset.k=k; img.src=face(k); };
+  const todayPic=h('<div class="earpic todaypic" aria-hidden="true"><span class="todaytag"></span></div>');
+  const showToday=()=>{                                                   // 平常的臉＝今日阿布
+    const on=!!TODAY&&img.dataset.k===FACES.normal;
+    if(on){ todayPic.style.backgroundImage=`url("${TODAY.src}")`; todayPic.style.backgroundSize=TODAY.size; todayPic.style.backgroundPosition=TODAY.pos;
+      todayPic.firstChild.textContent= TODAY.taken? '今日阿布 · '+new Date(TODAY.taken).getFullYear() : '今日阿布'; }
+    todayPic.classList.toggle('on',on);
+  };
+  const setFace=k=>{ if(img.dataset.k===k) return; img.dataset.k=k; img.src=face(k); showToday(); };
   const say=(t,big)=>{ bubble.textContent=t; bubble.classList.remove('pop','big'); void bubble.offsetWidth; bubble.classList.add(big?'big':'pop'); setTimeout(()=>bubble.classList.remove('pop'),250); };
   const zzz=h('<div class="zzz" aria-hidden="true">Z z z</div>');
   const petHand=h('<div class="pet-hand" aria-hidden="true"><svg viewBox="0 0 64 84"><use href="#i-pethand"/></svg></div>');
   const earA=h('<div class="earpic" aria-hidden="true"></div>'), earB=h('<div class="earpic" aria-hidden="true"></div>');
-  abu.appendChild(earA); abu.appendChild(earB); abu.appendChild(petHand);
-  loadEars();
+  abu.appendChild(todayPic); abu.appendChild(earA); abu.appendChild(earB); abu.appendChild(petHand);
+  loadEars(); onToday=showToday; loadToday(); showToday();
   /* 摸頭時換下一張飛機耳照片（兩層交叉淡入，不會閃） */
   function showEars(){
     const e=nextEar();
@@ -808,7 +837,7 @@ function Home(){
   resetIdle();
   const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
   const needT=setInterval(renderNeeds,30000);
-  cleanup=()=>{ clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
+  cleanup=()=>{ onToday=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
 
 /* ================= 小遊戲清單 ================= */
