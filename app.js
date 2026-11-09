@@ -552,12 +552,13 @@ function kibble(xs, ys, w, h, n, seed, fill, r){
 
 const BANG=(x,y,r=8)=>`<g class="mk-pop"><circle cx="${x}" cy="${y}" r="${r}" fill="#C8452F" stroke="#2B2723" stroke-width="1.6"/><rect x="${x-1.6}" y="${y-r*.6}" width="3.2" height="${r*.75}" rx="1.6" fill="#fff"/><circle cx="${x}" cy="${y+r*.42}" r="1.8" fill="#fff"/></g>`;
 /* ---------- A：白色家電（最像真的） ---------- */
-function feederA(bad){
+function feederA(bad,lv=1){
+  lv=Math.max(0,Math.min(1,lv)); const kh=16*lv, kn=Math.round(34*lv);
   const body=`
     <rect x="25" y="8" width="44" height="7" rx="3.5" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
     <rect x="26" y="13" width="42" height="28" rx="6" fill="#EEE9E2" stroke="#D9D3CA" stroke-width="1.2"/>
     <clipPath id="mkhop${bad?1:0}"><rect x="27" y="14" width="40" height="26" rx="5"/></clipPath>
-    <g clip-path="url(#mkhop${bad?1:0})">${kibble(27, bad?33:24, 40, bad?8:16, bad?10:34, 7, null, 2.4)}</g>
+    <g clip-path="url(#mkhop${bad?1:0})">${bad? kibble(27,33,40,8,10,7,null,2.4) : kn? kibble(27,40-kh,40,kh,kn,7,null,2.4) : ''}</g>
     <rect x="26" y="13" width="42" height="28" rx="6" fill="#fff" opacity=".28"/>
     <rect x="25" y="40" width="44" height="50" rx="7" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
     <rect x="25" y="40" width="44" height="5" fill="#C7CCD2"/>
@@ -573,8 +574,8 @@ function feederA(bad){
     ${full? kibble(38,87.5,26,3.5,14,3,null,1.7):''}`;
   if(!bad) return `<svg viewBox="0 0 100 100" aria-label="餵食機（正常）">
     <ellipse cx="50" cy="96" rx="30" ry="2.5" fill="#000" opacity=".08"/>
-    ${body}${bowl(true)}
-    <g><ellipse class="mk-k1" cx="47" cy="80" rx="1.7" ry="1.5" fill="#B57033"/><ellipse class="mk-k2" cx="49" cy="80" rx="1.7" ry="1.5" fill="#A9672F"/><ellipse class="mk-k3" cx="45.5" cy="80" rx="1.6" ry="1.4" fill="#BD7A3A"/></g>
+    ${body}${bowl(lv>0)}
+    ${lv>0? `<g><ellipse class="mk-k1" cx="47" cy="80" rx="1.7" ry="1.5" fill="#B57033"/><ellipse class="mk-k2" cx="49" cy="80" rx="1.7" ry="1.5" fill="#A9672F"/><ellipse class="mk-k3" cx="45.5" cy="80" rx="1.6" ry="1.4" fill="#BD7A3A"/></g>` : ''}
   </svg>`;
   return `<svg viewBox="0 0 100 100" aria-label="餵食機（罷工：倒在地上）">
     <ellipse cx="50" cy="96" rx="40" ry="2.5" fill="#000" opacity=".08"/>
@@ -585,23 +586,24 @@ function feederA(bad){
     ${BANG(84,24,9)}
   </svg>`;
 }
-function waterA(bad){
+function waterA(bad,lv=1){
+  lv=Math.max(0,Math.min(1,lv)); const th=bad?13:31*lv, bh=bad?5:19*lv;
   const tank=`
     <rect x="15" y="84" width="70" height="8" rx="4" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
     <rect x="18" y="42" width="64" height="44" rx="9" fill="#EAF3FA" stroke="#CFDCE6" stroke-width="1.2"/>
-    <rect x="19" y="${bad?72:54}" width="62" height="${bad?13:31}" rx="7" fill="#BFDDF2" opacity=".85"/>
+    ${th>0? `<rect x="19" y="${85-th}" width="62" height="${th}" rx="${Math.min(7,th/2)}" fill="#BFDDF2" opacity=".85"/>`:''}
     <rect x="29" y="50" width="6" height="28" rx="3" fill="#fff" stroke="#CFDCE6"/>
-    <rect x="30" y="${bad?72:58}" width="4" height="${bad?5:19}" rx="2" fill="#7DB6E0"/>
+    ${bh>0? `<rect x="30" y="${77-bh}" width="4" height="${bh}" rx="${Math.min(2,bh/2)}" fill="#7DB6E0"/>`:''}
     <g stroke="#9AA5AE" stroke-width=".8">${[52,57,62,67,72,77].map(y=>`<line x1="36" y1="${y}" x2="38.5" y2="${y}"/>`).join('')}</g>
     <rect x="13" y="32" width="74" height="13" rx="6.5" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
-    <ellipse cx="50" cy="37.5" rx="27" ry="4" fill="${bad?'#E7EEF3':'#CFE6F5'}"/>
+    <ellipse cx="50" cy="37.5" rx="27" ry="4" fill="${bad||!lv?'#E7EEF3':'#CFE6F5'}"/>
     <circle cx="50" cy="88" r="1.9" fill="${bad?'#FF4B3A':'#4DA3FF'}" class="${bad?'mk-blink':''}"/>`;
   if(!bad) return `<svg viewBox="0 0 100 100" aria-label="飲水機（正常）">
     <ellipse cx="50" cy="96" rx="34" ry="2.5" fill="#000" opacity=".08"/>
     ${tank}
-    <ellipse class="mk-rip" cx="50" cy="37.5" rx="12" ry="2" fill="none" stroke="#8CC4EA" stroke-width="1"/>
+    ${lv>0? `<ellipse class="mk-rip" cx="50" cy="37.5" rx="12" ry="2" fill="none" stroke="#8CC4EA" stroke-width="1"/>
     <g class="mk-spout"><path d="M50 37 C 49 28, 44 24, 41 33 M50 37 C 51 28, 56 24, 59 33 M50 37 L50 24" fill="none" stroke="#7FBDE6" stroke-width="2.2" stroke-linecap="round"/>
-    <circle cx="50" cy="23" r="2" fill="#A9D6F3"/></g>
+    <circle cx="50" cy="23" r="2" fill="#A9D6F3"/></g>` : `<path d="M50 37 v-3" stroke="#B9C3CB" stroke-width="2" stroke-linecap="round"/>`}
   </svg>`;
   return `<svg viewBox="0 0 100 100" aria-label="飲水機（罷工：沒電、水不噴、地板一灘水）">
     <ellipse cx="54" cy="95" rx="42" ry="4.5" fill="#BFDDF2" opacity=".85"/>
@@ -617,8 +619,20 @@ const AUTO_BAD={jam:'卡住了',steal:'被撞翻了',flood:'倒光了',power:'�
 const AUTO_FIX={jam:'拍一下',steal:'扶起來',flood:'裝回去',power:'換電池',noise:'拍一下',spill:'擦乾'};
 const AUTO_SAY={'feeder:jam':'（盯著餵食機）……今天的呢？','feeder:steal':'（打嗝）是它自己倒下來的，不是我','feeder:flood':'今天的餅乾一次全部出來了！（打嗝）',
   'feeder:power':'餵食機睡著了，叫不醒…','feeder:noise':'（躲在沙發後面）那台機器剛剛在叫…','water:spill':'地板怎麼濕濕的？不是我喔',
-  'water:power':'飲水機不會動了…（舔空碗）','water:gulp':'（打嗝）水好好喝…','feeder:new':'家裡多了兩台機器！（聞聞聞）'};
-const AUTO_NAG={feeder:['（盯著餵食機）','（用鼻子推餵食機）','餵食機壞掉了…誰來修一下','（趴在餵食機旁邊等）'],water:['（舔空水碗）','飲水機不會動了…','（用腳撥水碗）']};
+  'water:power':'飲水機不會動了…（舔空碗）','water:gulp':'（打嗝）水好好喝…','feeder:new':'家裡多了兩台機器！（聞聞聞）',
+  'feeder:empty':'（對著空碗嘆氣）料桶空空的…','water:empty':'水喝完了…（舔空碗）'};
+const AUTO_NAG={feeder:['（盯著餵食機）','（用鼻子推餵食機）','餵食機壞掉了…誰來修一下','（趴在餵食機旁邊等）'],water:['（舔空水碗）','飲水機不會動了…','（用腳撥水碗）'],
+  feederEmpty:['（把空碗叼過來）','料桶空空的…','（對著空碗嘆氣）','誰來補飼料～'],waterEmpty:['（舔空水碗）','水沒了…','（用鼻子推飲水機）']};
+/* 料桶、水箱還剩幾天（裝滿＝3 天） */
+const STOCK=()=>(AUTO&&AUTO.stock)||3;
+function stockLeft(m){
+  if(!AUTO||!AUTO[m]) return STOCK();
+  if(m==='feeder') return AUTO.feeder.left==null? STOCK() : Math.max(0,AUTO.feeder.left);
+  return AUTO.water.until==null? STOCK() : Math.max(0,(AUTO.water.until-Date.now())/864e5);
+}
+const stockLv=m=>Math.min(1,stockLeft(m)/STOCK());
+const stockDays=m=>m==='feeder'? stockLeft(m) : Math.ceil(stockLeft(m)-1e-6);
+const autoEmpty=()=>AUTO? ['feeder','water'].filter(m=>AUTO[m]&&!AUTO[m].bad&&stockLeft(m)<=0) : [];
 function setAuto(a){ if(!a||!a.feeder) return; AUTO=a; lsSet('abu-auto',AUTO); if(current==='home') renderMachines(); if(onAuto) onAuto(); }
 const autoBad=()=>AUTO? ['feeder','water'].filter(m=>AUTO[m]&&AUTO[m].bad) : [];
 function nextMeal(){ const hs=(AUTO&&AUTO.hours)||[18], h=new Date().getHours(); const n=hs.find(x=>x>h); return `${String(n===undefined?hs[0]:n).padStart(2,'0')}:00`; }
@@ -638,18 +652,23 @@ function renderMachines(){
   const box=$('#machines'); if(!box) return;
   if(!AUTO||!AUTO.feeder){ box.hidden=true; return; }
   box.hidden=false;
-  const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m];
-    return a.bad? `<button class="mach bad" data-m="${m}">${M.svg(true)}<div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`
-      : `<button class="mach" data-m="${m}">${M.svg(false)}<div><b>${M.name}</b><small>${m==='feeder'?`晚餐 ${nextMeal()}`:'水不限'}</small></div></button>`; };
+  const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m], d=stockDays(m), lv=stockLv(m);
+    if(a.bad) return `<button class="mach bad" data-m="${m}">${M.svg(true,lv)}<div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`;
+    if(d<=0) return `<button class="mach bad" data-m="${m}">${M.svg(false,0)}<div><b>${m==='feeder'?'料桶空了':'水喝完了'}</b><small>${m==='feeder'?'點我補飼料':'點我加水'}</small></div></button>`;
+    if(d<=1) return `<button class="mach low" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}・剩 1 天</b><small>${m==='feeder'?'點我補飼料':'點我加水'}</small></div></button>`;
+    return `<button class="mach" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}</b><small>${m==='feeder'?`晚餐 ${nextMeal()}・`:'水不限・'}剩 ${d} 天</small></div></button>`; };
   const e=autoLatest();
   box.innerHTML=chip('feeder')+chip('water')+(e?`<button class="mlog" id="mlog"><span>${whenLabel(e.t)}</span>${esc(logText(e))}</button>`:'');
-  box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m; if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b); else autoLog(); });
+  box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m;
+    if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b);
+    else if(stockLeft(m)<STOCK()-(m==='feeder'?0:.05)) refillMachine(m,b);      // 沒有全滿就補滿
+    else autoLog(); });
   const ml=box.querySelector('#mlog'); if(ml) ml.onclick=autoLog;
 }
 function autoLog(){
   const L=(AUTO&&AUTO.log||[]).slice().reverse();
-  modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出一餐，飲水機隨時有水。偶爾會罷工，看到了幫忙修一下。</p>
-    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(e.k!=='ok'&&e.k!=='fix'&&e.k!=='new'&&e.k!=='gulp')}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
+  modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出一餐，飲水機隨時有水。料桶、水箱裝滿可以撐 ${STOCK()} 天，快沒了點一下就能補（免費）。偶爾會罷工，看到了幫忙修一下。</p>
+    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(!['ok','fix','new','gulp','refill','empty'].includes(e.k), e.k==='empty'?0:1)}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
     <button class="btn" data-close>好</button>`);
 }
 let homeSay=null;
@@ -659,15 +678,44 @@ async function fixMachine(m,el){
   if(el){ el.classList.add('shake'); }
   tone(180,.08,'square',.06,0); tone(140,.1,'square',.05,0,.09);           // 喀啦喀啦
   /* 先在手機上修好（雲端回來再以雲端為準） */
-  AUTO=Object.assign({},AUTO,{[m]:{bad:'',since:0,fix:''},log:(AUTO.log||[]).concat([{t:now,m,k:'fix',by:me,text:`${me||'你'}${verb}，${m==='feeder'?'餵食機吐出 2 片':'飲水機又開始嘩啦啦'}`}])});
-  if(m==='feeder') NEEDS=Object.assign({},NEEDS,{f:Math.max(.8,fullNow()),ft:now,fb:me});
-  else NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:Math.max(.7,waterNow()),wt:now,wb:me});
+  const has=stockLeft(m)>0;
+  AUTO=Object.assign({},AUTO,{[m]:Object.assign({},AUTO[m],{bad:'',since:0,fix:''},m==='feeder'&&has?{left:AUTO.feeder.left-1}:{}),
+    log:(AUTO.log||[]).concat([{t:now,m,k:'fix',by:me,text:`${me||'你'}${verb}，${m==='feeder'?(has?'餵食機吐出 2 片':'餵食機好了，可是料桶是空的'):'飲水機又開始嘩啦啦'}`}])});
+  if(m==='feeder'&&has) NEEDS=Object.assign({},NEEDS,{f:Math.max(.8,fullNow()),ft:now,fb:me});
+  else if(m==='water'&&has) NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:1,wt:now,wb:me});
   lsSet('abu-auto',AUTO); lsSet('abu-needs',NEEDS);
   setTimeout(()=>{
     renderNeeds(); addLove(1); toast(`${M.name}修好了！+1 好感`);
-    if(homeSay) homeSay(m==='feeder'? '喀啦！餅乾出來了！（尾巴狂搖）' : '嘩啦啦～有水了！（咕嚕咕嚕）');
+    if(homeSay) homeSay(m==='feeder'? (has?'喀啦！餅乾出來了！（尾巴狂搖）':'修好了…可是裡面沒有飼料（歪頭）') : '嘩啦啦～有水了！（咕嚕咕嚕）');
   },450);
   if(API_URL){ careBusy++; let j=null; try{ j=await api({action:'fix',machine:m,by:me}); }catch(e){} careBusy--;
+    if(j&&j.ok){ if(j.needs) setNeeds(j.needs); if(j.auto) setAuto(j.auto); } }
+}
+/* 補飼料／加水（免費）：補回 3 天份；剛錯過一餐的話馬上出 */
+async function refillMachine(m,el){
+  if(!AUTO||!AUTO[m]) return;
+  const now=Date.now(), me=S.me||'', dry=stockLeft(m)<=0, F=AUTO.feeder;
+  if(el) el.classList.add('shake');
+  if(m==='feeder'){ [0,.06,.12,.18,.24].forEach((d,i)=>tone(700+i*90,.05,'triangle',.05,-200,d)); }   // 沙沙沙
+  else { tone(320,.18,'sine',.06,180); tone(420,.18,'sine',.05,160,.16); }                          // 咕嚕咕嚕
+  let text, a;
+  if(m==='feeder'){
+    const now2=F.skipped&&!F.bad;
+    a=Object.assign({},F,{left:now2?STOCK()-1:STOCK(),skipped:false});
+    text= now2? `${me||'你'}把飼料補滿了，餵食機馬上出了 2 片（還能吃 ${STOCK()-1} 天）` : `${me||'你'}把飼料補滿了（可以吃 ${STOCK()} 天）`;
+    if(now2) NEEDS=Object.assign({},NEEDS,{f:Math.max(.8,fullNow()),ft:now,fb:me});
+  } else {
+    a=Object.assign({},AUTO.water,{until:now+STOCK()*864e5,dry:false});
+    text=`${me||'你'}把飲水機加滿水（可以喝 ${STOCK()} 天）`;
+    if(dry&&!AUTO.water.bad) NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:1,wt:now,wb:me});
+  }
+  AUTO=Object.assign({},AUTO,{[m]:a,log:(AUTO.log||[]).concat([{t:now,m,k:'refill',by:me,text}])});
+  lsSet('abu-auto',AUTO); lsSet('abu-needs',NEEDS);
+  setTimeout(()=>{
+    renderNeeds(); addLove(1); toast(`${m==='feeder'?'飼料':'水'}補滿了，可以撐 ${STOCK()} 天！+1 好感`);
+    if(homeSay) homeSay(m==='feeder'? '（聽到飼料聲衝過來）沙沙沙～是飼料！' : '（湊過去聞聞）新的水！');
+  },450);
+  if(API_URL){ careBusy++; let j=null; try{ j=await api({action:'refill',machine:m,by:me}); }catch(e){} careBusy--;
     if(j&&j.ok){ if(j.needs) setNeeds(j.needs); if(j.auto) setAuto(j.auto); } }
 }
 const ago=t=>{ const m=Math.round((Date.now()-t)/60000); return m<1?'剛剛': m<60? `${m} 分鐘前` : m<1440? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
@@ -961,7 +1009,7 @@ function Home(){
   /* 機器出了什麼事（自己還沒看過的）：阿布招呼完再說 */
   const autoNews=()=>{
     if(!AUTO||!AUTO.log) return;
-    const e=AUTO.log.slice().reverse().find(e=>e.k!=='ok'&&e.k!=='wait'&&e.k!=='fix'&&e.t>(S.autoSeen||0)&&Date.now()-e.t<2*864e5);
+    const e=AUTO.log.slice().reverse().find(e=>!['ok','wait','fix','refill'].includes(e.k)&&e.t>(S.autoSeen||0)&&Date.now()-e.t<2*864e5);
     const seen=Math.max(S.autoSeen||0,...AUTO.log.map(e=>e.t)); if(seen!==S.autoSeen){ S.autoSeen=seen; save(); }
     if(!e) return;
     setTimeout(()=>{ if(current!=='home'||state==='sleep') return; say(AUTO_SAY[e.m+':'+e.k]||logText(e),true); },2600);
@@ -979,7 +1027,7 @@ function Home(){
     setTimeout(()=>{ addBones(g.gift); toast(g.missed? `阿布把藏起來的 ${g.gift} 片餅乾都給你了` : `阿布叼來今天的 ${g.gift} 片餅乾`,2400); },g.mood==='miss'?2200:700);
   }
   resetIdle();
-  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
+  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : autoEmpty().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoEmpty())+'Empty']) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
   const needT=setInterval(renderNeeds,30000);
   cleanup=()=>{ onToday=null; onAuto=null; homeSay=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
