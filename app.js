@@ -621,7 +621,7 @@ const AUTO_SAY={'feeder:jam':'（盯著餵食機）……今天的呢？','feede
 const AUTO_NAG={feeder:['（盯著餵食機）','（用鼻子推餵食機）','餵食機壞掉了…誰來修一下','（趴在餵食機旁邊等）'],water:['（舔空水碗）','飲水機不會動了…','（用腳撥水碗）']};
 function setAuto(a){ if(!a||!a.feeder) return; AUTO=a; lsSet('abu-auto',AUTO); if(current==='home') renderMachines(); if(onAuto) onAuto(); }
 const autoBad=()=>AUTO? ['feeder','water'].filter(m=>AUTO[m]&&AUTO[m].bad) : [];
-function nextMeal(){ const hs=(AUTO&&AUTO.hours)||[8,18], h=new Date().getHours(); const n=hs.find(x=>x>h); return `${String(n===undefined?hs[0]:n).padStart(2,'0')}:00`; }
+function nextMeal(){ const hs=(AUTO&&AUTO.hours)||[18], h=new Date().getHours(); const n=hs.find(x=>x>h); return `${String(n===undefined?hs[0]:n).padStart(2,'0')}:00`; }
 function whenLabel(t){
   const d=new Date(t), now=new Date(), day=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime();
   const diff=Math.round((day(now)-day(d))/864e5), hm=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -640,7 +640,7 @@ function renderMachines(){
   box.hidden=false;
   const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m];
     return a.bad? `<button class="mach bad" data-m="${m}">${M.svg(true)}<div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`
-      : `<button class="mach" data-m="${m}">${M.svg(false)}<div><b>${M.name}</b><small>${m==='feeder'?`下一餐 ${nextMeal()}`:'運轉中'}</small></div></button>`; };
+      : `<button class="mach" data-m="${m}">${M.svg(false)}<div><b>${M.name}</b><small>${m==='feeder'?`晚餐 ${nextMeal()}`:'水不限'}</small></div></button>`; };
   const e=autoLatest();
   box.innerHTML=chip('feeder')+chip('water')+(e?`<button class="mlog" id="mlog"><span>${whenLabel(e.t)}</span>${esc(logText(e))}</button>`:'');
   box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m; if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b); else autoLog(); });
@@ -648,7 +648,7 @@ function renderMachines(){
 }
 function autoLog(){
   const L=(AUTO&&AUTO.log||[]).slice().reverse();
-  modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[8,18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出餐，飲水機每 3 小時補水。偶爾會罷工，看到了幫忙修一下。</p>
+  modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出一餐，飲水機隨時有水。偶爾會罷工，看到了幫忙修一下。</p>
     <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(e.k!=='ok'&&e.k!=='fix'&&e.k!=='new'&&e.k!=='gulp')}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
     <button class="btn" data-close>好</button>`);
 }
