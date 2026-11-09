@@ -540,7 +540,79 @@ async function careAbu(kind){                                 // 先在手機上
 }
 /* 自動餵食機、自動飲水機（雲端照時間自己跑，偶爾罷工，要家人修） */
 let AUTO=lsGet('abu-auto')||null, onAuto=null;
-const MACH={feeder:{name:'餵食機',ico:'🍽️'},water:{name:'飲水機',ico:'🚰'}};
+/* 餵食機、飲水機的圖（A 白色家電：照真的自動餵食機和噴泉飲水機畫） */
+/* 飼料顆粒：固定位置，每次畫出來都一樣 */
+function kibble(xs, ys, w, h, n, seed, fill, r){
+  let s=seed, out='';
+  const rnd=()=>{ s=(s*9301+49297)%233280; return s/233280; };
+  for(let i=0;i<n;i++){ const x=xs+rnd()*w, y=ys+rnd()*h, rr=r*(0.8+rnd()*0.45), sh=['#A9672F','#BD7A3A','#93572A'][i%3];
+    out+=`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rr.toFixed(1)}" ry="${(rr*0.85).toFixed(1)}" fill="${fill||sh}"/>`; }
+  return out;
+}
+
+const BANG=(x,y,r=8)=>`<g class="mk-pop"><circle cx="${x}" cy="${y}" r="${r}" fill="#C8452F" stroke="#2B2723" stroke-width="1.6"/><rect x="${x-1.6}" y="${y-r*.6}" width="3.2" height="${r*.75}" rx="1.6" fill="#fff"/><circle cx="${x}" cy="${y+r*.42}" r="1.8" fill="#fff"/></g>`;
+/* ---------- A：白色家電（最像真的） ---------- */
+function feederA(bad){
+  const body=`
+    <rect x="25" y="8" width="44" height="7" rx="3.5" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
+    <rect x="26" y="13" width="42" height="28" rx="6" fill="#EEE9E2" stroke="#D9D3CA" stroke-width="1.2"/>
+    <clipPath id="mkhop${bad?1:0}"><rect x="27" y="14" width="40" height="26" rx="5"/></clipPath>
+    <g clip-path="url(#mkhop${bad?1:0})">${kibble(27, bad?33:24, 40, bad?8:16, bad?10:34, 7, null, 2.4)}</g>
+    <rect x="26" y="13" width="42" height="28" rx="6" fill="#fff" opacity=".28"/>
+    <rect x="25" y="40" width="44" height="50" rx="7" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
+    <rect x="25" y="40" width="44" height="5" fill="#C7CCD2"/>
+    <circle cx="47" cy="47.5" r="2.6" fill="#2B2723"/><circle cx="46.2" cy="46.8" r=".8" fill="#fff"/>
+    <rect x="35" y="53" width="24" height="12" rx="2" fill="#1F1D1B"/>
+    ${bad? `<text class="mk-blink" x="47" y="61.8" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="8" font-weight="700" fill="#FF5A47">Err</text>`
+         : `<text x="47" y="61.8" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="8" font-weight="700" fill="#F4F1EC">8:00</text>`}
+    <g fill="#D9D3CA">${[38,42,46,50,54].map(x=>`<circle cx="${x}" cy="69" r="1.3"/>`).join('')}</g>
+    <rect x="40" y="74" width="14" height="10" rx="2" fill="#F1ECE4" stroke="#D9D3CA" stroke-width="1"/>`;
+  const bowl=(full)=>`
+    <ellipse cx="51" cy="92" rx="21" ry="5.5" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
+    <ellipse cx="51" cy="90.5" rx="16" ry="3.6" fill="#BFC4CA"/>
+    ${full? kibble(38,87.5,26,3.5,14,3,null,1.7):''}`;
+  if(!bad) return `<svg viewBox="0 0 100 100" aria-label="餵食機（正常）">
+    <ellipse cx="50" cy="96" rx="30" ry="2.5" fill="#000" opacity=".08"/>
+    ${body}${bowl(true)}
+    <g><ellipse class="mk-k1" cx="47" cy="80" rx="1.7" ry="1.5" fill="#B57033"/><ellipse class="mk-k2" cx="49" cy="80" rx="1.7" ry="1.5" fill="#A9672F"/><ellipse class="mk-k3" cx="45.5" cy="80" rx="1.6" ry="1.4" fill="#BD7A3A"/></g>
+  </svg>`;
+  return `<svg viewBox="0 0 100 100" aria-label="餵食機（罷工：倒在地上）">
+    <ellipse cx="50" cy="96" rx="40" ry="2.5" fill="#000" opacity=".08"/>
+    <g transform="translate(50 70) rotate(-82) scale(.86) translate(-47 -49)">${body}</g>
+    ${kibble(6,88,88,7,30,11,null,1.9)}
+    <ellipse cx="84" cy="90" rx="11" ry="3.4" fill="#fff" stroke="#D9D3CA" stroke-width="1.2" transform="rotate(-14 84 90)"/>
+    <ellipse cx="84" cy="89.4" rx="7.5" ry="2.1" fill="#BFC4CA" transform="rotate(-14 84 89)"/>
+    ${BANG(84,24,9)}
+  </svg>`;
+}
+function waterA(bad){
+  const tank=`
+    <rect x="15" y="84" width="70" height="8" rx="4" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
+    <rect x="18" y="42" width="64" height="44" rx="9" fill="#EAF3FA" stroke="#CFDCE6" stroke-width="1.2"/>
+    <rect x="19" y="${bad?72:54}" width="62" height="${bad?13:31}" rx="7" fill="#BFDDF2" opacity=".85"/>
+    <rect x="29" y="50" width="6" height="28" rx="3" fill="#fff" stroke="#CFDCE6"/>
+    <rect x="30" y="${bad?72:58}" width="4" height="${bad?5:19}" rx="2" fill="#7DB6E0"/>
+    <g stroke="#9AA5AE" stroke-width=".8">${[52,57,62,67,72,77].map(y=>`<line x1="36" y1="${y}" x2="38.5" y2="${y}"/>`).join('')}</g>
+    <rect x="13" y="32" width="74" height="13" rx="6.5" fill="#fff" stroke="#D9D3CA" stroke-width="1.2"/>
+    <ellipse cx="50" cy="37.5" rx="27" ry="4" fill="${bad?'#E7EEF3':'#CFE6F5'}"/>
+    <circle cx="50" cy="88" r="1.9" fill="${bad?'#FF4B3A':'#4DA3FF'}" class="${bad?'mk-blink':''}"/>`;
+  if(!bad) return `<svg viewBox="0 0 100 100" aria-label="飲水機（正常）">
+    <ellipse cx="50" cy="96" rx="34" ry="2.5" fill="#000" opacity=".08"/>
+    ${tank}
+    <ellipse class="mk-rip" cx="50" cy="37.5" rx="12" ry="2" fill="none" stroke="#8CC4EA" stroke-width="1"/>
+    <g class="mk-spout"><path d="M50 37 C 49 28, 44 24, 41 33 M50 37 C 51 28, 56 24, 59 33 M50 37 L50 24" fill="none" stroke="#7FBDE6" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="50" cy="23" r="2" fill="#A9D6F3"/></g>
+  </svg>`;
+  return `<svg viewBox="0 0 100 100" aria-label="飲水機（罷工：沒電、水不噴、地板一灘水）">
+    <ellipse cx="54" cy="95" rx="42" ry="4.5" fill="#BFDDF2" opacity=".85"/>
+    <ellipse cx="80" cy="96" rx="9" ry="2" fill="#BFDDF2"/>
+    ${tank}
+    <path d="M50 37 v-3" stroke="#B9C3CB" stroke-width="2" stroke-linecap="round"/>
+    <circle class="mk-drip" cx="84" cy="88" r="1.5" fill="#8CC4EA"/>
+    ${BANG(84,20,9)}
+  </svg>`;
+}
+const MACH={feeder:{name:'餵食機',svg:feederA},water:{name:'飲水機',svg:waterA}};
 const AUTO_BAD={jam:'卡住了',steal:'被撞翻了',flood:'倒光了',power:'沒電了',noise:'怪怪的',spill:'水碗翻了'};
 const AUTO_FIX={jam:'拍一下',steal:'扶起來',flood:'裝回去',power:'換電池',noise:'拍一下',spill:'擦乾'};
 const AUTO_SAY={'feeder:jam':'（盯著餵食機）……今天的呢？','feeder:steal':'（打嗝）是它自己倒下來的，不是我','feeder:flood':'今天的餅乾一次全部出來了！（打嗝）',
@@ -567,8 +639,8 @@ function renderMachines(){
   if(!AUTO||!AUTO.feeder){ box.hidden=true; return; }
   box.hidden=false;
   const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m];
-    return a.bad? `<button class="mach bad" data-m="${m}"><span>${M.ico}</span><div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`
-      : `<button class="mach" data-m="${m}"><span>${M.ico}</span><div><b>${M.name}</b><small>${m==='feeder'?`下一餐 ${nextMeal()}`:'運轉中'}</small></div></button>`; };
+    return a.bad? `<button class="mach bad" data-m="${m}">${M.svg(true)}<div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`
+      : `<button class="mach" data-m="${m}">${M.svg(false)}<div><b>${M.name}</b><small>${m==='feeder'?`下一餐 ${nextMeal()}`:'運轉中'}</small></div></button>`; };
   const e=autoLatest();
   box.innerHTML=chip('feeder')+chip('water')+(e?`<button class="mlog" id="mlog"><span>${whenLabel(e.t)}</span>${esc(logText(e))}</button>`:'');
   box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m; if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b); else autoLog(); });
@@ -577,7 +649,7 @@ function renderMachines(){
 function autoLog(){
   const L=(AUTO&&AUTO.log||[]).slice().reverse();
   modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[8,18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出餐，飲水機每 3 小時補水。偶爾會罷工，看到了幫忙修一下。</p>
-    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}"><span>${(MACH[e.m]||MACH.feeder).ico}</span><div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
+    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(e.k!=='ok'&&e.k!=='fix'&&e.k!=='new'&&e.k!=='gulp')}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
     <button class="btn" data-close>好</button>`);
 }
 let homeSay=null;
