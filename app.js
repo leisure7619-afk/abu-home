@@ -133,7 +133,7 @@ const isRecent = p => !p.sample && p.t && Date.now()-p.t < NEW_DAYS*864e5;
 const isVid = p => Array.isArray(p.v);                                   // 影片：p.v = [秒數, 寬, 高]
 const vdur = p => { const d=Math.round((p.v&&p.v[0])||0); return d? `${Math.floor(d/60)}:${String(d%60).padStart(2,'0')}` : ''; };
 const passOn = () => (S.passLeft||0) > 0;
-const isOpen = p => passOn() || S.unlocked.includes(p.id) || (!isVid(p) && (['美食','洗澡','上廁所'].includes(p.cat) || isRecent(p)));
+const isOpen = p => true;                                              // 照片、影片全部免費看（2026-11 起不用餅乾）
 const photosOnly = () => pool().filter(p=>!isVid(p));
 const openPhotos = () => { const o=photosOnly().filter(isOpen); return o.length? o: photosOnly().slice(0,FREE_OPEN); };
 function ensureFree(){
@@ -1035,7 +1035,7 @@ function Home(){
 /* ================= 小遊戲清單 ================= */
 function Games(){
   const s=h(`<section class="screen">
-    <div class="album-head"><div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布、解鎖回憶照片和阿布短片。</p></div><button class="btn sm" id="boardBtn">🏆 排行榜</button></div>
+    <div class="album-head"><div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布。</p></div><button class="btn sm" id="boardBtn">🏆 排行榜</button></div>
     <button class="game-card" data-g="memory"><img class="thumb" src="img/face_60.jpg" alt=""><div><b>回憶翻牌</b><span>翻開兩張一樣的照片</span></div><span class="reward">+3~8<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="catch"><img class="thumb" src="${face('face_68')}" alt=""><div><b>阿布接零食</b><span>左右滑動接住食物，巧克力、葡萄、洋蔥不能吃</span></div><span class="reward">+1~10<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
     <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>點兩塊交換位置，拼回原來的照片</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
@@ -1121,7 +1121,7 @@ function showBoards(g0){
 function Memory(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('回憶翻牌','mstat'));
   const grid=h(`<div class="cards"></div>`); s.appendChild(grid);
-  s.appendChild(h(`<p class="hint">解鎖越多照片，牌組就越多變化</p>`));
+  s.appendChild(h(`<p class="hint">照片越多，牌組就越多變化</p>`));
   main.appendChild(s);
   const faces=['face_60','face_65','face_66','face_62','face_143','face_142','face_68'].map(k=>({key:k,html:`<img src="${face(k)}" alt="">`}));
   const photos=openPhotos().map(p=>({key:p.id,html:pimg(p,400,'alt=""')}));
@@ -1293,7 +1293,7 @@ function Album(){
   const g=$('#grid');
   const ph=list.filter(p=>!isVid(p)), vs=list.filter(isVid), open=ph.filter(isOpen).length;
   $('#prog').textContent = PH_STATE==='loading'&&!PH.length? '從雲端硬碟讀照片中…'
-    : passOn()? `共 ${ph.length} 張${vs.length?`、影片 ${vs.length} 支`:''}，已開通` : `已解鎖 ${open} / ${ph.length} 張${vs.length?`、影片 ${vs.filter(isOpen).length} / ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
+    : `共 ${ph.length} 張${vs.length?`、影片 ${vs.length} 支`:''}${PH_STATE==='sample'?'（內建照片）':PH_STATE==='fail'?'（連不上雲端，先顯示內建照片）':''}`;
   const yearOf=p=>p.sample? '' : p.taken? String(new Date(p.taken).getFullYear()) : '?';
   const perYear={}; list.forEach(p=>{ const y=yearOf(p); perYear[y]=(perYear[y]||0)+1; });
   let year=null;
@@ -2973,9 +2973,9 @@ async function ensureTodayReel(){
   if(current==='album') go('album',true);
 }
 
-/* 看短片：2 片餅乾解鎖一支，解鎖後可以一直重看 */
+/* 看短片（免費；以前要 2 片餅乾解鎖） */
 const reelKey = r => r.day+'|'+r.key;
-const reelIsOpen = r => (S.reelOpen||[]).includes(reelKey(r));
+const reelIsOpen = r => true;                                          // 短片免費看
 function playReel(list,idx){
   const r=list[idx]; if(!r) return;
   if(reelIsOpen(r)) return openReel(list,idx);
