@@ -517,11 +517,11 @@ async function streetWalk(fallback,after){
   setTimeout(()=>{ if(!closed) talk(spots.some(s=>s.pano)? '出發囉！跟著箭頭走' : '出發囉！',1.8); },400);
 }
 /* 阿布的飢餓、口渴、想尿尿：全家共用（存在雲端），12 小時從飽到餓、8 小時從不渴到很渴、10 小時憋到滿（吃喝會更快） */
-const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3, PEE_SHARE=.7;
+const NEED_EAT=12*3600e3, NEED_DRINK=8*3600e3, PEE_SHARE=.4;   // 跟雲端一樣：水不限時約 15 小時到 75%
 let NEEDS=lsGet('abu-needs')||{f:1,ft:Date.now(),fb:'',w:1,wt:Date.now(),wb:''};
 const fullNow=()=>Math.max(0,Math.min(1,NEEDS.f-(Date.now()-NEEDS.ft)/NEED_EAT));
 const waterNow=()=>Math.max(0,Math.min(1,NEEDS.w-(Date.now()-NEEDS.wt)/NEED_DRINK));
-/* 尿尿＝水分慢慢變少時，70% 轉成尿（水喝完了就不再增加） */
+/* 尿尿＝水分慢慢變少時，40% 轉成尿（水喝完了就不再增加） */
 const waterAt=t=>Math.max(0,NEEDS.w-Math.max(0,t-NEEDS.wt)/NEED_DRINK);
 const peeNow=()=>{ const now=Date.now(), pt=NEEDS.pt||now; return Math.max(0,Math.min(1,(NEEDS.p||0)+PEE_SHARE*(waterAt(pt)-waterAt(now)))); };
 const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, mustPee=()=>peeNow()>=.75, needy=()=>hungry()||thirsty()||mustPee();
