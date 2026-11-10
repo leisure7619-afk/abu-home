@@ -662,7 +662,7 @@ function whenLabel(t){
   return diff===0? `今天 ${hm}` : diff===1? `昨天 ${hm}` : `${d.getMonth()+1}/${d.getDate()} ${hm}`;
 }
 const logText=e=>String(e.text||'').replace(/^\d\d:\d\d /,'')      // 舊紀錄也換成口語
-  .replace(/（還能吃 ?\d+ ?天）/g,'').replace(/(出|吐出)了? ?\d+ ?片/g,'出飯了').replace(/出飯了飯/g,'出飯了')
+  .replace(/（(還能|可以)(吃|喝) ?\d+ ?天）/g,'').replace(/把飲水機加滿水/g,'把水加滿了').replace(/(出|吐出)了? ?\d+ ?片/g,'出飯了').replace(/出飯了飯/g,'出飯了')
   .replace(/補滿了/g,'加滿了').replace(/料桶見底了/g,'飼料吃光了');
 /* 首頁上最近一則好笑的事（罷工、偷吃、修好），沒有就顯示最近一次出餐 */
 const autoLogs=()=>(AUTO&&AUTO.log||[]).filter(e=>e.k!=='empty').map(e=>e.k==='ok'? Object.assign({},e,{text:String(e.text).replace(/，(飼料吃光了|料桶見底了)/,'')}) : e);   // 沒了不提醒
@@ -682,9 +682,12 @@ function renderMachines(){
   box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m;
     if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b);
     else if(stockLeft(m)<STOCK()-(m==='feeder'?0:.05)){ pourAnim(m,stockLv(m)); refillMachine(m,null,2500); }   // 沒有全滿：倒飼料／倒水
-    else autoLog(); });
+    else mtip(b,m==='feeder'?'還很滿，不用加喔':'水還很滿，不用加喔'); });
   const ml=box.querySelector('#mlog'); if(ml) ml.onclick=autoLog;
 }
+/* 滿的時候點：機器上方冒一行小字，一下就消失 */
+function mtip(b,t){ const old=b.querySelector('.mtip'); if(old) old.remove();
+  const e=h(`<span class="mtip">${t}</span>`); b.appendChild(e); setTimeout(()=>e.remove(),1500); }
 function autoLog(){
   const L=autoLogs().reverse();
   modal(`<h3>阿布的飯和水</h3>
