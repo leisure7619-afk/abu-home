@@ -530,7 +530,7 @@ let careBusy=0;
 function setNeeds(n){ if(n&&typeof n.f==='number'&&!careBusy){ NEEDS=n; lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
 async function careAbu(kind){                                 // 先在手機上更新，再告訴雲端（全家同步）
   const now=Date.now();
-  if(kind==='walk'){ NEEDS=Object.assign({},NEEDS,{p:0,pt:now,pb:S.me||''}); }
+  if(kind==='walk'){ NEEDS=Object.assign({},NEEDS,{p:0,pt:now,pk:now,pb:S.me||''}); }
   else {
     if(kind==='eat'){ NEEDS=Object.assign({},NEEDS,{f:Math.min(1,fullNow()+.3),ft:now,fb:S.me||''}); }
     else { NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:Math.min(1,waterNow()+.1),wt:now,wb:S.me||''}); }   // 喝一次 +10%
@@ -726,7 +726,7 @@ function renderNeeds(){
   set('#needF',f); set('#needW',w);
   const p=peeNow(), pe=box.querySelector('#needP');               // 尿尿條是越滿越急
   pe.querySelector('i').style.width=(p*100)+'%'; pe.classList.toggle('low',p>=.75); pe.classList.toggle('mid',p>=.5&&p<.75);
-  const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${ago(NEEDS.pt)}帶去尿尿`].filter(Boolean).join('・');
+  const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${NEEDS.pk? ago(NEEDS.pk) : '之前'}帶去尿尿`].filter(Boolean).join('・');
   box.querySelector('#needWho').textContent= who || (f<.25||w<.25||p>=.75? '阿布在等人照顧…' : '');
   renderMachines();
 }
