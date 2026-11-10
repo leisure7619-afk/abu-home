@@ -351,7 +351,7 @@ async function streetWalk(fallback,after){
   }
   if(!d) return fail('暗號不對，改看散步照片');
   if(!d.ok||!Array.isArray(d.home)) return fail('還沒設定散步起點，改看散步照片');
-  try{ await loadMaps(); }catch(e){ return fail('街景載入失敗，改看散步照片'); }
+  try{ await loadMaps(); }catch(e){ return fail('街景打不開，改看散步照片'); }
   const G=google.maps, sv=new G.StreetViewService(), home=d.home;
   const findPano=(ll,r)=>sv.getPanorama({location:{lat:ll[0],lng:ll[1]},radius:r,source:G.StreetViewSource.OUTDOOR}).then(x=>x&&x.data).catch(()=>null);
   const spots=(d.spots||[]).map(s=>Object.assign({},s,{ll:[s.lat,s.lng],done:false,pano:undefined}));
@@ -391,7 +391,7 @@ async function streetWalk(fallback,after){
   /* 尿尿點小卡：點了就走過去（有街景的話），沒街景就直接看照片 */
   function chips(){
     $o('#svChips').innerHTML=spots.map((s,i)=>`<button class="sv-chip${s.done?' done':''}${s.pano===null?' none':''}" data-i="${i}">
-      <span>${s.done?'✓':'🌳'}</span><b>${esc(s.name)}</b><small>${s.pano===null?'沒有街景':`${s.n} 次`}</small></button>`).join('');
+      <span>${s.done?'✓':'🌳'}</span><b>${esc(s.name)}</b>${s.pano===null?'<small>沒有街景</small>':''}</button>`).join('');
     $o('#svChips').querySelectorAll('.sv-chip').forEach(b=>b.onclick=()=>{
       const s=spots[+b.dataset.i]; sfx.pop();
       if(busy) return;
@@ -420,7 +420,7 @@ async function streetWalk(fallback,after){
     g.hidden=false; $o('#svArr').style.transform=`rotate(${rel}deg)`;
     $o('#svGuideT').textContent= target.home? (dist<=15? '到家了！' : `回家 ${dist} 公尺`) : dist<=SV_NEAR? `${target.name}到了` : `${target.name} ${dist} 公尺`;
   }
-  function upd(){ $o('#svInfo').textContent=`走了 ${Math.round(walked)} 公尺${visited?` · 巡了 ${visited} 個地盤`:''}${info?` · ${info}`:''}`; guide(); }
+  function upd(){ $o('#svInfo').textContent=`走了 ${Math.round(walked)} 公尺`; guide(); }
 
   /* ---- 阿布的背影（跟「陪阿布散步」同一張去背照片，捲尾巴會搖） ---- */
   const cv=$o('#svAbu'), ctx=cv.getContext('2d');
@@ -471,7 +471,7 @@ async function streetWalk(fallback,after){
   }
   function memories(s,fresh){
     const list=(s.ph||[]).map(x=>Object.assign({taken:x.t},pool().find(p=>p.id===x.id)||{id:x.id}));
-    const m=modal(`<h3>${esc(s.name)}</h3><p>${fresh?'（尿好了）':''}阿布在這裡尿過 ${s.n} 次</p>
+    const m=modal(`<h3>${esc(s.name)}</h3>${fresh?'<p>（尿好了）</p>':''}
       <div class="sv-mem${list.length===1?' one':''}">${list.map(p=>`<figure>${pimg(p,500,'alt="" loading="lazy"')}<figcaption>${p.taken?fmtDate(p.taken):''}</figcaption></figure>`).join('')}</div>
       <button class="btn" data-close>${fresh?'繼續走':'好'}</button>`,()=>{ if(closed) return; if(fresh) talk(pickTarget()&&pickTarget().home? '地盤都巡完了！回家吧' : '走吧，下一個',1.8); target=null; upd(); });
     if(fresh) m.el.querySelector('.dialog').insertAdjacentHTML('afterbegin','<span class="sv-plus">+1 好感</span>');
@@ -510,7 +510,7 @@ async function streetWalk(fallback,after){
     if(silent) return;
     const m=Math.round(walked);
     modal(`<img class="face-img" src="${face(visited?'face_60':'face_66')}" alt=""><h3>${visited?'散步好開心！':'回家囉'}</h3>
-      <p>${m?`今天陪阿布走了 ${m} 公尺`:'今天在門口看了一下'}${visited?`，巡了 ${visited} 個地盤`:''}。</p><button class="btn" data-close>摸摸阿布</button>`,after);
+      <p>${m?`今天陪阿布走了 ${m} 公尺`:'今天在門口看了一下'}</p><button class="btn" data-close>摸摸阿布</button>`,after);
   }
   $o('#svHome').onclick=()=>{ sfx.pop(); close(); };
   chips(); upd();
@@ -565,7 +565,7 @@ function feederA(bad,lv=1){
     <circle cx="47" cy="47.5" r="2.6" fill="#2B2723"/><circle cx="46.2" cy="46.8" r=".8" fill="#fff"/>
     <rect x="35" y="53" width="24" height="12" rx="2" fill="#1F1D1B"/>
     ${bad? `<text class="mk-blink" x="47" y="61.8" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="8" font-weight="700" fill="#FF5A47">Err</text>`
-         : `<text x="47" y="61.8" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="8" font-weight="700" fill="#F4F1EC">8:00</text>`}
+         : `<text x="47" y="61.8" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="8" font-weight="700" fill="#F4F1EC">${(d=>`${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`)(new Date())}</text>`}
     <g fill="#D9D3CA">${[38,42,46,50,54].map(x=>`<circle cx="${x}" cy="69" r="1.3"/>`).join('')}</g>
     <rect x="40" y="74" width="14" height="10" rx="2" fill="#F1ECE4" stroke="#D9D3CA" stroke-width="1"/>`;
   const bowl=(full)=>`
@@ -641,7 +641,9 @@ function whenLabel(t){
   const diff=Math.round((day(now)-day(d))/864e5), hm=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   return diff===0? `今天 ${hm}` : diff===1? `昨天 ${hm}` : `${d.getMonth()+1}/${d.getDate()} ${hm}`;
 }
-const logText=e=>String(e.text||'').replace(/^\d\d:\d\d /,'');
+const logText=e=>String(e.text||'').replace(/^\d\d:\d\d /,'')      // 舊紀錄也換成口語
+  .replace(/（還能吃 ?\d+ ?天）/g,'').replace(/(出|吐出)了? ?\d+ ?片/g,'出飯了').replace(/出飯了飯/g,'出飯了')
+  .replace(/補滿了/g,'加滿了').replace(/料桶見底了/g,'飼料吃光了');
 /* 首頁上最近一則好笑的事（罷工、偷吃、修好），沒有就顯示最近一次出餐 */
 function autoLatest(){
   if(!AUTO||!AUTO.log||!AUTO.log.length) return null;
@@ -653,10 +655,10 @@ function renderMachines(){
   if(!AUTO||!AUTO.feeder){ box.hidden=true; return; }
   box.hidden=false;
   const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m], d=stockDays(m), lv=stockLv(m);
-    if(a.bad) return `<button class="mach bad" data-m="${m}">${M.svg(true,lv)}<div><b>${M.name}${AUTO_BAD[a.bad]||'壞了'}</b><small>點我${AUTO_FIX[a.bad]||'修一下'}</small></div></button>`;
-    if(d<=0) return `<button class="mach bad" data-m="${m}">${M.svg(false,0)}<div><b>${m==='feeder'?'料桶空了':'水喝完了'}</b><small>${m==='feeder'?'點我補飼料':'點我加水'}</small></div></button>`;
-    if(d<=1) return `<button class="mach low" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}・剩 1 天</b><small>${m==='feeder'?'點我補飼料':'點我加水'}</small></div></button>`;
-    return `<button class="mach" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}</b><small>${m==='feeder'?`晚餐 ${nextMeal()}・`:'水不限・'}剩 ${d} 天</small></div></button>`; };
+    if(a.bad) return `<button class="mach bad" data-m="${m}">${M.svg(true,lv)}<div><b>${M.name}</b><small>${AUTO_BAD[a.bad]||'怪怪的'}</small></div></button>`;
+    if(d<=0) return `<button class="mach bad" data-m="${m}">${M.svg(false,0)}<div><b>${M.name}</b><small>空了</small></div></button>`;
+    if(d<=1) return `<button class="mach low" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}</b><small>快沒了</small></div></button>`;
+    return `<button class="mach" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}</b></div></button>`; };
   const e=autoLatest();
   box.innerHTML=chip('feeder')+chip('water')+(e?`<button class="mlog" id="mlog"><span>${whenLabel(e.t)}</span>${esc(logText(e))}</button>`:'');
   box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m;
@@ -667,8 +669,8 @@ function renderMachines(){
 }
 function autoLog(){
   const L=(AUTO&&AUTO.log||[]).slice().reverse();
-  modal(`<h3>機器動態</h3>
-    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(!['ok','fix','new','gulp','refill','empty'].includes(e.k), e.k==='empty'?0:1)}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
+  modal(`<h3>阿布的飯和水</h3>
+    <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(!['ok','fix','new','gulp','refill','empty'].includes(e.k), e.k==='empty'?0:1)}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒什麼事</li>'}</ul>
     <button class="btn" data-close>好</button>`);
 }
 let homeSay=null;
@@ -680,12 +682,12 @@ async function fixMachine(m,el){
   /* 先在手機上修好（雲端回來再以雲端為準） */
   const has=stockLeft(m)>0;
   AUTO=Object.assign({},AUTO,{[m]:Object.assign({},AUTO[m],{bad:'',since:0,fix:''},m==='feeder'&&has?{left:AUTO.feeder.left-1}:{}),
-    log:(AUTO.log||[]).concat([{t:now,m,k:'fix',by:me,text:`${me||'你'}${verb}，${m==='feeder'?(has?'餵食機吐出 2 片':'餵食機好了，可是料桶是空的'):'飲水機又開始嘩啦啦'}`}])});
+    log:(AUTO.log||[]).concat([{t:now,m,k:'fix',by:me,text:`${me||'你'}${verb}，${m==='feeder'?(has?'餵食機又出飯了':'餵食機好了，可是裡面沒飼料'):'飲水機又開始嘩啦啦'}`}])});
   if(m==='feeder'&&has) NEEDS=Object.assign({},NEEDS,{f:Math.max(.8,fullNow()),ft:now,fb:me});
   else if(m==='water'&&has) NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:1,wt:now,wb:me});
   lsSet('abu-auto',AUTO); lsSet('abu-needs',NEEDS);
   setTimeout(()=>{
-    renderNeeds(); addLove(1); toast(`${M.name}修好了！+1 好感`);
+    renderNeeds(); addLove(1); toast(`修好了 +1 好感`);
     if(homeSay) homeSay(m==='feeder'? (has?'喀啦！餅乾出來了！（尾巴狂搖）':'修好了…可是裡面沒有飼料（歪頭）') : '嘩啦啦～有水了！（咕嚕咕嚕）');
   },450);
   if(API_URL){ careBusy++; let j=null; try{ j=await api({action:'fix',machine:m,by:me}); }catch(e){} careBusy--;
@@ -702,17 +704,17 @@ async function refillMachine(m,el){
   if(m==='feeder'){
     const now2=F.skipped&&!F.bad;
     a=Object.assign({},F,{left:now2?STOCK()-1:STOCK(),skipped:false});
-    text= now2? `${me||'你'}把飼料補滿了，餵食機馬上出了 2 片（還能吃 ${STOCK()-1} 天）` : `${me||'你'}把飼料補滿了（可以吃 ${STOCK()} 天）`;
+    text= now2? `${me||'你'}把飼料加滿了，餵食機馬上出飯` : `${me||'你'}把飼料加滿了`;
     if(now2) NEEDS=Object.assign({},NEEDS,{f:Math.max(.8,fullNow()),ft:now,fb:me});
   } else {
     a=Object.assign({},AUTO.water,{until:now+STOCK()*864e5,dry:false});
-    text=`${me||'你'}把飲水機加滿水（可以喝 ${STOCK()} 天）`;
+    text=`${me||'你'}把水加滿了`;
     if(dry&&!AUTO.water.bad) NEEDS=Object.assign({},NEEDS,{p:peeNow(),pt:now,w:1,wt:now,wb:me});
   }
   AUTO=Object.assign({},AUTO,{[m]:a,log:(AUTO.log||[]).concat([{t:now,m,k:'refill',by:me,text}])});
   lsSet('abu-auto',AUTO); lsSet('abu-needs',NEEDS);
   setTimeout(()=>{
-    renderNeeds(); addLove(1); toast(`${m==='feeder'?'飼料':'水'}補滿了，可以撐 ${STOCK()} 天！+1 好感`);
+    renderNeeds(); addLove(1); toast(`${m==='feeder'?'飼料':'水'}加滿了 +1 好感`);
     if(homeSay) homeSay(m==='feeder'? '（聽到飼料聲衝過來）沙沙沙～是飼料！' : '（湊過去聞聞）新的水！');
   },450);
   if(API_URL){ careBusy++; let j=null; try{ j=await api({action:'refill',machine:m,by:me}); }catch(e){} careBusy--;
@@ -835,11 +837,11 @@ function Home(){
   const img=$('#abuImg'), abu=$('#abu'), bubble=$('#bubble'), fx=$('#fx'), joy=$('#joy');
   let state='normal', revert=null, idle=null, combo=0, tier=-1, decay=null, lastTap=0, bigParty=0;
   let holdT=null, blissT=null, bliss=false;
-  const todayPic=h('<div class="earpic todaypic" aria-hidden="true"><span class="todaytag"></span></div>');
+  const todayPic=h('<div class="earpic todaypic" aria-hidden="true"></div>');
   const showToday=()=>{                                                   // 平常的臉＝今日阿布
     const on=!!TODAY&&img.dataset.k===FACES.normal;
     if(on){ todayPic.style.backgroundImage=`url("${TODAY.src}")`; todayPic.style.backgroundSize=TODAY.size; todayPic.style.backgroundPosition=TODAY.pos;
-      todayPic.firstChild.textContent= TODAY.taken? '今日阿布 · '+new Date(TODAY.taken).getFullYear() : '今日阿布'; }
+    }
     todayPic.classList.toggle('on',on);
   };
   const setFace=k=>{ if(img.dataset.k===k) return; img.dataset.k=k; img.src=face(k); showToday(); };
@@ -1312,7 +1314,7 @@ function view(p){
   const back=current; let m;
   if(!S.seen.includes(p.id)){ S.seen.push(p.id); save(); }
   sfx.pop();
-  const cap = p.cap? esc(p.cap) : (API_URL&&!p.sample&&CONFIG.ai? '<span class="meta">AI 正在寫這張的回憶，晚點再來看</span>' : '');
+  const cap = p.cap? esc(p.cap) : '';
   const date = p.sample? '' : p.taken? `拍攝於 ${ymd(p.taken)}` : '拍攝日期不明';
   const media = isVid(p)? `<div class="vframe"><iframe src="https://drive.google.com/file/d/${encodeURIComponent(p.id)}/preview" allow="autoplay; fullscreen" allowfullscreen title="阿布的影片"></iframe></div>`
     : pimg(p,1600,`class="big-photo" alt="${esc(p.cap||'阿布')}"`);
@@ -2992,7 +2994,7 @@ function reelStrip(){
     const seen=(S.reelSeen||[]).includes(main.day+main.key);
     const open=reelIsOpen(main);
     const b=h(`<button class="reel-main${open?'':' locked'}" aria-label="${open?'播放':'解鎖'}今天的阿布短片：${esc(main.title)}">${cover(main,800)}${open?'':'<span class="veil"></span>'}
-      <span class="reel-meta"><span class="reel-tag">${seen?'今日短片':'今日短片・NEW'}</span><b>${esc(main.title)}</b><small>${esc(main.name)}・15 秒${open?'':`・${REEL_COST} 片餅乾解鎖`}</small></span>
+      <span class="reel-meta"><span class="reel-tag">${seen?'今日短片':'今日短片・NEW'}</span><b>${esc(main.title)}</b><small>${esc(main.name)}</small></span>
       <span class="reel-play"><svg><use href="${open?'#i-play':'#i-lock-d'}"/></svg></span></button>`);
     b.onclick=()=>playReel(list,0);
     box.appendChild(b);
