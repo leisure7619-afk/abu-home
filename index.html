@@ -611,8 +611,12 @@
   .mach small{font-size:11px;color:var(--ink-soft);white-space:nowrap;font-weight:400}
   .mach.bad{background:#FBE1DC;box-shadow:inset 0 0 0 2px var(--bad);animation:pulse 1.6s ease-in-out infinite}
   .mach.bad small{color:var(--bad);font-weight:700}
-  .mach.low{background:#FDF0C4;box-shadow:inset 0 0 0 2px var(--collar)}
-  .mach.low small{color:#7A5A00;font-weight:700}
+  .pour{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(43,39,35,.32);animation:pourin .2s ease-out}
+  .pour.out{opacity:0;transition:opacity .3s}
+  .pour-card{width:min(78vw,300px);aspect-ratio:1;background:var(--paper);border-radius:28px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:10px;box-sizing:border-box}
+  .pour-card svg{width:100%;height:100%;display:block;overflow:visible}
+  .pour .tilt{transform-box:fill-box;transform-origin:0% 100%}
+  @keyframes pourin{from{opacity:0}}
   .mach.shake{animation:machshake .45s ease-in-out}
   @keyframes machshake{20%{transform:translateX(-4px) rotate(-2deg)}40%{transform:translateX(4px) rotate(2deg)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
   .mlog{grid-column:1/-1;text-align:left;font-size:12px;line-height:1.4;color:var(--ink);background:none;padding:2px 2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -715,7 +719,7 @@
     <button data-tab="album"><svg><use href="#i-album"/></svg>相簿<i class="dot"></i></button>
   </nav>
 </div>
-<script src="config.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=1111"></script>
+<script src="app.js?v=1111"></script>
 </body>
 </html>

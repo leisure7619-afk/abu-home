@@ -77,28 +77,52 @@ function fillEars(){
     if(EARS_ALL.length<=EARS_READY.length+earsLoading) break;  // 照片很少時不要同一張重複載
   }
 }
-/* 今日阿布：首頁平常的臉每天從雲端換一張（全家同一張）。只挑看得到大臉的照片（AI 記的頭位置），
- * 裁出頭部放進圓框；開心、睡覺、張望等表情還是用原本的照片。載不到就退回內建那張。 */
-let TODAY=null, todayFor='', onToday=null;
-function loadToday(){
-  const day=todayKey();
-  const list=PH.filter(p=>!isVid(p)&&!p.sample&&p.cat!=='上廁所'&&Array.isArray(p.head)&&p.head.length===4&&(p.head[2]-p.head[0])*(p.head[3]-p.head[1])>=90000)
-    .sort((a,b)=>a.id<b.id?-1:1);
-  const key=day+'|'+list.length;
-  if(key===todayFor) return; todayFor=key;
-  if(!list.length) return;
-  let h=2166136261; for(const c of day){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); }
-  const start=(h>>>0)%list.length;
-  const tryAt=k=>{
-    if(k>=Math.min(6,list.length)||todayFor!==key) return;               // 最多試 6 張
-    const p=list[(start+k)%list.length], im=new Image();
-    im.onload=()=>{ if(todayFor!==key) return; const c=earCrop(p.head,im.naturalWidth,im.naturalHeight);
-      if(!c) return tryAt(k+1); TODAY=Object.assign({id:p.id,src:im.src,taken:p.taken},c); if(onToday) onToday(); };
-    im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; } else tryAt(k+1); };
-    im.src=purl(p,800);
-  };
-  tryAt(0);
+/* 首頁大臉：從相簿裡看得到大臉的照片挑（AI 記的頭位置，裁出頭部放進圓框）。
+ * 先開 50 張，之後每天多開 5 張（全家同一批，順序固定）；最近 7 天上傳的也算。
+ * 每次進首頁、阿布睡醒都換一張：今天新開的、還沒看過的先出，最近看過的先跳過。
+ * 下一張先在背景載好（記在手機上），下次一進來就是新的臉。開心、睡覺等表情還是用原本的照片。 */
+const FACE_FROM=new Date(2026,10,11).getTime(), FACE_BASE=50, FACE_DAY=5;
+const fhash=s=>{ let h=2166136261; for(const c of String(s)){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); }
+  h^=h>>>16; h=Math.imul(h,2246822507); h^=h>>>13; h=Math.imul(h,3266489909); h^=h>>>16; return (h>>>0)/4294967296; };   // 打散，全家同一套順序
+function facePool(){
+  const all=PH.filter(p=>!isVid(p)&&!p.sample&&p.cat!=='上廁所'&&Array.isArray(p.head)&&p.head.length===4&&Math.max(p.head[2]-p.head[0],p.head[3]-p.head[1])>=200);
+  const days=Math.max(0,Math.floor((Date.now()-FACE_FROM)/864e5)), n=Math.max(1,all.length);
+  const f=(FACE_BASE+days*FACE_DAY)/n, fy=(FACE_BASE+(days-1)*FACE_DAY)/n;
+  const open=all.filter(p=>fhash(p.id)<f||isRecent(p));
+  return { open, fresh:open.filter(p=>(days>0&&fhash(p.id)>=fy)||isRecent(p)) };
 }
+const faceBad=new Set();
+function pickFace(skip){
+  const {open,fresh}=facePool(), seen=S.faceSeen||[], ok=p=>p.id!==skip&&!faceBad.has(p.id);
+  let c=fresh.filter(p=>ok(p)&&!seen.includes(p.id));
+  if(!c.length){ const back=new Set(seen.slice(-Math.floor(open.length*.6))); c=open.filter(p=>ok(p)&&!back.has(p.id)); }
+  if(!c.length) c=open.filter(ok);
+  return c.length? pick(c) : null;
+}
+/* 載一張臉；載好回傳 {id,src,size,pos}，這張裁不出大臉就換一張（最多試 6 張） */
+function prepFace(p,done,tries=0){
+  if(!p||tries>5) return done(null);
+  const hd=p.head, span=Math.max(hd[2]-hd[0],hd[3]-hd[1])/1000, im=new Image();
+  const retry=()=>{ faceBad.add(p.id); prepFace(pickFace(p.id),done,tries+1); };
+  im.onload=()=>{ const c=earCrop(hd,im.naturalWidth,im.naturalHeight); c? done(Object.assign({id:p.id,src:im.src},c)) : retry(); };
+  im.onerror=()=>{ if(!im.dataset.fb){ im.dataset.fb='1'; im.src=`https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; } else retry(); };
+  im.src=purl(p,span<.35?1600:span<.5?1200:800);                        // 頭拍得小就抓大一點的圖，放大才不會糊
+}
+let TODAY=null, onToday=null, FACE_NEXT=null, faceBusy=0;
+function faceSeen(id){ S.faceSeen=(S.faceSeen||[]).filter(x=>x!==id).concat(id).slice(-300); save(); }
+const savedNext=()=>S.faceNext&&(!TODAY||TODAY.id!==S.faceNext)&&PH.find(p=>p.id===S.faceNext&&Array.isArray(p.head)&&!faceBad.has(p.id));   // 上次就挑好的那張（手機裡已經有圖）
+function prepNext(){
+  if(FACE_NEXT||faceBusy||!PH.length) return;
+  faceBusy++; prepFace(savedNext()||pickFace(TODAY&&TODAY.id),f=>{ faceBusy--; if(f){ FACE_NEXT=f; S.faceNext=f.id; save(); } });
+}
+/* 換一張臉：下一張已經載好就馬上換，沒有就先載 */
+function nextFace(){
+  if(FACE_NEXT){ TODAY=FACE_NEXT; FACE_NEXT=null; S.faceNext=''; faceSeen(TODAY.id); if(onToday) onToday(); prepNext(); return; }
+  if(!PH.length||faceBusy) return;
+  faceBusy++; prepFace(savedNext()||pickFace(TODAY&&TODAY.id),f=>{ faceBusy--; if(f){ TODAY=f; S.faceNext=''; faceSeen(f.id); if(onToday) onToday(); } prepNext(); });
+}
+/* 照片清單更新了：還沒有臉就換一張，順便把下一張備好 */
+function loadToday(){ if(!TODAY) nextFace(); else prepNext(); }
 /* 下一張飛機耳照片：用掉就補下一張；還沒載好就沿用上一張，再不行用本地那張 */
 function nextEar(){
   const e=EARS_READY.shift(); fillEars();
@@ -619,11 +643,9 @@ const AUTO_BAD={jam:'卡住了',steal:'被撞翻了',flood:'倒光了',power:'�
 const AUTO_FIX={jam:'拍一下',steal:'扶起來',flood:'裝回去',power:'換電池',noise:'拍一下',spill:'擦乾'};
 const AUTO_SAY={'feeder:jam':'（盯著餵食機）……今天的呢？','feeder:steal':'（打嗝）是它自己倒下來的，不是我','feeder:flood':'今天的餅乾一次全部出來了！（打嗝）',
   'feeder:power':'餵食機睡著了，叫不醒…','feeder:noise':'（躲在沙發後面）那台機器剛剛在叫…','water:spill':'地板怎麼濕濕的？不是我喔',
-  'water:power':'飲水機不會動了…（舔空碗）','water:gulp':'（打嗝）水好好喝…','feeder:new':'家裡多了兩台機器！（聞聞聞）',
-  'feeder:empty':'（對著空碗嘆氣）料桶空空的…','water:empty':'水喝完了…（舔空碗）'};
-const AUTO_NAG={feeder:['（盯著餵食機）','（用鼻子推餵食機）','餵食機壞掉了…誰來修一下','（趴在餵食機旁邊等）'],water:['（舔空水碗）','飲水機不會動了…','（用腳撥水碗）'],
-  feederEmpty:['（把空碗叼過來）','料桶空空的…','（對著空碗嘆氣）','誰來補飼料～'],waterEmpty:['（舔空水碗）','水沒了…','（用鼻子推飲水機）']};
-/* 料桶、水箱還剩幾天（裝滿＝3 天） */
+  'water:power':'飲水機不會動了…（舔空碗）','water:gulp':'（打嗝）水好好喝…','feeder:new':'家裡多了兩台機器！（聞聞聞）'};
+const AUTO_NAG={feeder:['（盯著餵食機）','（用鼻子推餵食機）','餵食機壞掉了…誰來修一下','（趴在餵食機旁邊等）'],water:['（舔空水碗）','飲水機不會動了…','（用腳撥水碗）']};
+/* 料桶、水箱還有多少（只拿來畫圖） */
 const STOCK=()=>(AUTO&&AUTO.stock)||3;
 function stockLeft(m){
   if(!AUTO||!AUTO[m]) return STOCK();
@@ -631,8 +653,6 @@ function stockLeft(m){
   return AUTO.water.until==null? STOCK() : Math.max(0,(AUTO.water.until-Date.now())/864e5);
 }
 const stockLv=m=>Math.min(1,stockLeft(m)/STOCK());
-const stockDays=m=>m==='feeder'? stockLeft(m) : Math.ceil(stockLeft(m)-1e-6);
-const autoEmpty=()=>AUTO? ['feeder','water'].filter(m=>AUTO[m]&&!AUTO[m].bad&&stockLeft(m)<=0) : [];
 function setAuto(a){ if(!a||!a.feeder) return; AUTO=a; lsSet('abu-auto',AUTO); if(current==='home') renderMachines(); if(onAuto) onAuto(); }
 const autoBad=()=>AUTO? ['feeder','water'].filter(m=>AUTO[m]&&AUTO[m].bad) : [];
 function nextMeal(){ const hs=(AUTO&&AUTO.hours)||[18], h=new Date().getHours(); const n=hs.find(x=>x>h); return `${String(n===undefined?hs[0]:n).padStart(2,'0')}:00`; }
@@ -645,33 +665,96 @@ const logText=e=>String(e.text||'').replace(/^\d\d:\d\d /,'')      // 舊紀錄�
   .replace(/（還能吃 ?\d+ ?天）/g,'').replace(/(出|吐出)了? ?\d+ ?片/g,'出飯了').replace(/出飯了飯/g,'出飯了')
   .replace(/補滿了/g,'加滿了').replace(/料桶見底了/g,'飼料吃光了');
 /* 首頁上最近一則好笑的事（罷工、偷吃、修好），沒有就顯示最近一次出餐 */
+const autoLogs=()=>(AUTO&&AUTO.log||[]).filter(e=>e.k!=='empty').map(e=>e.k==='ok'? Object.assign({},e,{text:String(e.text).replace(/，(飼料吃光了|料桶見底了)/,'')}) : e);   // 沒了不提醒
 function autoLatest(){
-  if(!AUTO||!AUTO.log||!AUTO.log.length) return null;
-  const L=AUTO.log.slice().reverse(), dayAgo=Date.now()-36*3600e3;
-  return L.find(e=>e.k!=='ok'&&e.k!=='wait'&&e.t>dayAgo) || L[0];
+  const L=autoLogs().reverse(), dayAgo=Date.now()-36*3600e3;
+  return L.find(e=>e.k!=='ok'&&e.k!=='wait'&&e.t>dayAgo) || L[0] || null;
 }
 function renderMachines(){
   const box=$('#machines'); if(!box) return;
   if(!AUTO||!AUTO.feeder){ box.hidden=true; return; }
   box.hidden=false;
-  const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m], d=stockDays(m), lv=stockLv(m);
+  const chip=m=>{ const a=AUTO[m]||{}, M=MACH[m], lv=stockLv(m);     // 不寫剩多少，看圖就知道
     if(a.bad) return `<button class="mach bad" data-m="${m}">${M.svg(true,lv)}<div><b>${M.name}</b><small>${AUTO_BAD[a.bad]||'怪怪的'}</small></div></button>`;
-    if(d<=0) return `<button class="mach bad" data-m="${m}">${M.svg(false,0)}<div><b>${M.name}</b><small>空了</small></div></button>`;
-    if(d<=1) return `<button class="mach low" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}</b><small>快沒了</small></div></button>`;
     return `<button class="mach" data-m="${m}">${M.svg(false,lv)}<div><b>${M.name}</b></div></button>`; };
   const e=autoLatest();
   box.innerHTML=chip('feeder')+chip('water')+(e?`<button class="mlog" id="mlog"><span>${whenLabel(e.t)}</span>${esc(logText(e))}</button>`:'');
   box.querySelectorAll('.mach').forEach(b=>b.onclick=()=>{ const m=b.dataset.m;
     if(AUTO[m]&&AUTO[m].bad) fixMachine(m,b);
-    else if(stockLeft(m)<STOCK()-(m==='feeder'?0:.05)) refillMachine(m,b);      // 沒有全滿就補滿
+    else if(stockLeft(m)<STOCK()-(m==='feeder'?0:.05)){ pourAnim(m,stockLv(m)); refillMachine(m,null,2500); }   // 沒有全滿：倒飼料／倒水
     else autoLog(); });
   const ml=box.querySelector('#mlog'); if(ml) ml.onclick=autoLog;
 }
 function autoLog(){
-  const L=(AUTO&&AUTO.log||[]).slice().reverse();
+  const L=autoLogs().reverse();
   modal(`<h3>阿布的飯和水</h3>
     <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(!['ok','fix','new','gulp','refill','empty'].includes(e.k), e.k==='empty'?0:1)}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒什麼事</li>'}</ul>
     <button class="btn" data-close>好</button>`);
+}
+/* 補飼料、加水的畫面：拿飼料袋往料桶倒、拿水壺往水箱倒，料／水慢慢升到滿 */
+function pourAnim(m,lv0){
+  lv0=Math.max(0,Math.min(1,lv0||0));
+  const feeder=m==='feeder';
+  const svg=feeder? `<svg viewBox="0 0 200 200" aria-label="倒飼料">
+      <ellipse cx="100" cy="190" rx="70" ry="5" fill="#000" opacity=".07"/>
+      <clipPath id="pourHop"><rect x="64" y="70" width="72" height="40" rx="8"/></clipPath>
+      <rect x="62" y="68" width="76" height="44" rx="10" fill="#EEE9E2" stroke="#D9D3CA" stroke-width="1.6"/>
+      <g clip-path="url(#pourHop)"><g class="fillup" data-from="${((1-lv0)*40).toFixed(1)}">${kibble(64,70,72,40,95,7,null,3.3)}</g></g>
+      <rect x="62" y="68" width="76" height="44" rx="10" fill="#fff" opacity=".25"/>
+      <rect x="60" y="110" width="80" height="66" rx="12" fill="#fff" stroke="#D9D3CA" stroke-width="1.6"/>
+      <rect x="60" y="110" width="80" height="7" fill="#C7CCD2"/>
+      <rect x="78" y="126" width="44" height="18" rx="3" fill="#1F1D1B"/>
+      <text x="100" y="139.5" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="12" font-weight="700" fill="#F4F1EC">${(d=>`${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`)(new Date())}</text>
+      <g fill="#D9D3CA">${[86,93,100,107,114].map(x=>`<circle cx="${x}" cy="152" r="1.8"/>`).join('')}</g>
+      <rect x="88" y="158" width="24" height="14" rx="3" fill="#F1ECE4" stroke="#D9D3CA" stroke-width="1.2"/>
+      <ellipse cx="112" cy="184" rx="34" ry="7" fill="#fff" stroke="#D9D3CA" stroke-width="1.6"/>
+      <ellipse cx="112" cy="182" rx="26" ry="4.4" fill="#BFC4CA"/>
+      <g class="grains">${Array.from({length:14},(_,i)=>`<ellipse cx="${78+(i*7)%11}" cy="56" rx="3" ry="2.5" fill="${['#A9672F','#BD7A3A','#93572A'][i%3]}" opacity="0"/>`).join('')}</g>
+      <g class="tilt">
+        <path d="M142 18 h38 l3 46 h-44 z" fill="#C99A5B" stroke="#9C7239" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M142 18 l4 -10 h30 l4 10 z" fill="#B5874A" stroke="#9C7239" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle cx="161" cy="42" r="9" fill="#F4E6CF"/>
+        <g fill="#9C7239"><circle cx="161" cy="45" r="3.4"/><circle cx="156.5" cy="39.5" r="1.6"/><circle cx="160" cy="37.5" r="1.6"/><circle cx="163.8" cy="37.8" r="1.6"/><circle cx="166.4" cy="40.6" r="1.6"/></g>
+      </g>
+    </svg>`
+  : `<svg viewBox="0 0 200 200" aria-label="倒水">
+      <ellipse cx="100" cy="190" rx="76" ry="5" fill="#000" opacity=".07"/>
+      <path class="stream" d="M81 40 C 82 60, 86 80, 86 112" fill="none" stroke="#8CC4EA" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 5" opacity="0"/>
+      <clipPath id="pourTank"><rect x="38" y="100" width="124" height="70" rx="14"/></clipPath>
+      <rect x="36" y="98" width="128" height="74" rx="16" fill="#EAF3FA" stroke="#CFDCE6" stroke-width="1.6"/>
+      <g clip-path="url(#pourTank)"><g class="fillup" data-from="${((1-lv0)*70).toFixed(1)}">
+        <rect x="38" y="104" width="124" height="70" fill="#BFDDF2"/>
+        <path d="M38 105 q 10 -5 20 0 t 20 0 t 20 0 t 20 0 t 20 0 t 20 0 t 20 0" fill="none" stroke="#8CC4EA" stroke-width="2"/>
+        ${[60,96,130,74,116].map((x,i)=>`<circle class="bub" cx="${x}" cy="${150+i*4}" r="${2+i%2}" fill="#fff" opacity=".7"/>`).join('')}
+      </g></g>
+      <rect x="36" y="98" width="128" height="74" rx="16" fill="#fff" opacity=".18"/>
+      <rect x="30" y="170" width="140" height="14" rx="7" fill="#fff" stroke="#D9D3CA" stroke-width="1.6"/>
+      <circle cx="100" cy="177" r="2.6" fill="#4DA3FF"/>
+      <g class="tilt">
+        <path d="M132 26 h34 a6 6 0 0 1 6 6 v34 a10 10 0 0 1 -10 10 h-26 a10 10 0 0 1 -10 -10 v-34 z" fill="#E3F1FB" stroke="#9CC3DD" stroke-width="1.8"/>
+        <path d="M134 44 h36 v22 a8 8 0 0 1 -8 8 h-22 a8 8 0 0 1 -8 -8 z" fill="#A9D6F3" opacity=".9"/>
+        <path d="M132 30 l-14 -8 l2 14 z" fill="#E3F1FB" stroke="#9CC3DD" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M172 36 c 14 0 14 26 0 26" fill="none" stroke="#9CC3DD" stroke-width="5" stroke-linecap="round"/>
+      </g>
+    </svg>`;
+  const o=h(`<div class="pour"><div class="pour-card">${svg}</div></div>`); app.appendChild(o);
+  const anim=(el,k,t)=>{ try{ return el&&el.animate(k,t); }catch(e){} };
+  const T=2300, IN=450, OUT=1850;                                       // 傾倒、倒、收回
+  anim(o.querySelector('.tilt'),[{transform:'rotate(0)'},{transform:`rotate(${feeder?-100:-45}deg)`,offset:IN/T},{transform:`rotate(${feeder?-100:-45}deg)`,offset:OUT/T},{transform:'rotate(0)'}],{duration:T,easing:'ease-in-out',fill:'both'});
+  const fu=o.querySelector('.fillup');
+  anim(fu,[{transform:`translateY(${fu.dataset.from}px)`},{transform:'translateY(0)'}],{duration:OUT-IN,delay:IN+100,easing:'ease-out',fill:'both'});
+  if(feeder) o.querySelectorAll('.grains ellipse').forEach((g,i)=>anim(g,[{transform:'translateY(0)',opacity:1},{transform:`translateY(${30+(i%4)*4}px)`,opacity:1,offset:.85},{transform:`translateY(${34+(i%4)*4}px)`,opacity:0}],{duration:380,delay:IN+(i*97)%380,iterations:Math.floor((OUT-IN-400)/380),easing:'ease-in'}));
+  else {
+    const st=o.querySelector('.stream');
+    anim(st,[{opacity:0},{opacity:1,offset:.08},{opacity:1,offset:.92},{opacity:0}],{duration:OUT-IN+100,delay:IN-50,fill:'both'});
+    anim(st,[{strokeDashoffset:0},{strokeDashoffset:-34}],{duration:300,iterations:Infinity});
+    o.querySelectorAll('.bub').forEach((b,i)=>anim(b,[{transform:'translateY(0)',opacity:.8},{transform:'translateY(-40px)',opacity:0}],{duration:900,delay:IN+i*180,iterations:2}));
+  }
+  /* 聲音：沙沙沙／咕嚕咕嚕 */
+  if(feeder) for(let i=0;i<10;i++) tone(650+(i%4)*110,.05,'triangle',.04,-200,IN/1000+i*.13);
+  else for(let i=0;i<6;i++) tone(300+(i%3)*60,.16,'sine',.05,160,IN/1000+i*.22);
+  const close=()=>{ if(o.dataset.c) return; o.dataset.c=1; o.classList.add('out'); setTimeout(()=>o.remove(),300); };
+  o.onclick=close; setTimeout(close,T+250);
 }
 let homeSay=null;
 async function fixMachine(m,el){
@@ -694,12 +777,10 @@ async function fixMachine(m,el){
     if(j&&j.ok){ if(j.needs) setNeeds(j.needs); if(j.auto) setAuto(j.auto); } }
 }
 /* 補飼料／加水（免費）：補回 3 天份；剛錯過一餐的話馬上出 */
-async function refillMachine(m,el){
+async function refillMachine(m,el,wait=450){
   if(!AUTO||!AUTO[m]) return;
   const now=Date.now(), me=S.me||'', dry=stockLeft(m)<=0, F=AUTO.feeder;
   if(el) el.classList.add('shake');
-  if(m==='feeder'){ [0,.06,.12,.18,.24].forEach((d,i)=>tone(700+i*90,.05,'triangle',.05,-200,d)); }   // 沙沙沙
-  else { tone(320,.18,'sine',.06,180); tone(420,.18,'sine',.05,160,.16); }                          // 咕嚕咕嚕
   let text, a;
   if(m==='feeder'){
     const now2=F.skipped&&!F.bad;
@@ -714,9 +795,9 @@ async function refillMachine(m,el){
   AUTO=Object.assign({},AUTO,{[m]:a,log:(AUTO.log||[]).concat([{t:now,m,k:'refill',by:me,text}])});
   lsSet('abu-auto',AUTO); lsSet('abu-needs',NEEDS);
   setTimeout(()=>{
-    renderNeeds(); addLove(1); toast(`${m==='feeder'?'飼料':'水'}加滿了 +1 好感`);
+    renderNeeds(); renderMachines(); addLove(1); toast(`${m==='feeder'?'飼料':'水'}加滿了 +1 好感`);
     if(homeSay) homeSay(m==='feeder'? '（聽到飼料聲衝過來）沙沙沙～是飼料！' : '（湊過去聞聞）新的水！');
-  },450);
+  },wait);
   if(API_URL){ careBusy++; let j=null; try{ j=await api({action:'refill',machine:m,by:me}); }catch(e){} careBusy--;
     if(j&&j.ok){ if(j.needs) setNeeds(j.needs); if(j.auto) setAuto(j.auto); } }
 }
@@ -850,7 +931,7 @@ function Home(){
   const petHand=h('<div class="pet-hand" aria-hidden="true"><svg viewBox="0 0 64 84"><use href="#i-pethand"/></svg></div>');
   const earA=h('<div class="earpic" aria-hidden="true"></div>'), earB=h('<div class="earpic" aria-hidden="true"></div>');
   abu.appendChild(todayPic); abu.appendChild(earA); abu.appendChild(earB); abu.appendChild(petHand);
-  loadEars(); onToday=showToday; loadToday(); showToday();
+  loadEars(); onToday=showToday; nextFace(); showToday();
   /* 摸頭時換下一張飛機耳照片（兩層交叉淡入，不會閃） */
   function showEars(){
     const e=nextEar();
@@ -874,7 +955,7 @@ function Home(){
   function sleep(){ if(bliss) return; state='sleep'; combo=0; tier=-1; renderJoy(); setFace(FACES.sleep); say('呼…呼…'); abu.appendChild(zzz); }
   function wake(){
     if(state!=='sleep') return false;
-    state='normal'; zzz.remove(); setFace(pick(FACES.look));
+    state='normal'; zzz.remove(); setFace(pick(FACES.look)); nextFace();       // 睡醒換一張臉
     const hr=new Date().getHours();
     say(hr>=22||hr<6? '嗯…你還沒睡喔？' : pick(LINES.wake)); tone(500,.12,'sine',.1,300); return true;
   }
@@ -1012,7 +1093,7 @@ function Home(){
   /* 機器出了什麼事（自己還沒看過的）：阿布招呼完再說 */
   const autoNews=()=>{
     if(!AUTO||!AUTO.log) return;
-    const e=AUTO.log.slice().reverse().find(e=>!['ok','wait','fix','refill'].includes(e.k)&&e.t>(S.autoSeen||0)&&Date.now()-e.t<2*864e5);
+    const e=AUTO.log.slice().reverse().find(e=>!['ok','wait','fix','refill','empty'].includes(e.k)&&e.t>(S.autoSeen||0)&&Date.now()-e.t<2*864e5);
     const seen=Math.max(S.autoSeen||0,...AUTO.log.map(e=>e.t)); if(seen!==S.autoSeen){ S.autoSeen=seen; save(); }
     if(!e) return;
     setTimeout(()=>{ if(current!=='home'||state==='sleep') return; say(AUTO_SAY[e.m+':'+e.k]||logText(e),true); },2600);
@@ -1030,7 +1111,7 @@ function Home(){
     setTimeout(()=>{ addBones(g.gift); toast(g.missed? `阿布把藏起來的 ${g.gift} 片餅乾都給你了` : `阿布叼來今天的 ${g.gift} 片餅乾`,2400); },g.mood==='miss'?2200:700);
   }
   resetIdle();
-  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : autoEmpty().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoEmpty())+'Empty']) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
+  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
   const needT=setInterval(renderNeeds,30000);
   cleanup=()=>{ onToday=null; onAuto=null; homeSay=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
