@@ -322,7 +322,7 @@ function loadMaps(){
 function askWalkCode(wrong){
   return new Promise(res=>{
     const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>${wrong?'暗號不對喔':'家人暗號'}</h3>
-      <p>阿布要帶你走家附近的路。先說家人才知道的暗號，這支手機只問這一次。</p>
+      <p>家人才知道的那句話</p>
       <label class="field">暗號<input id="wcode" maxlength="40" autocomplete="off"></label>
       <div class="row"><button class="btn" id="wok">出發</button><button class="btn ghost" data-close>改看照片</button></div>`,()=>res(null));
     const i=m.el.querySelector('#wcode'); setTimeout(()=>i.focus(),60);
@@ -614,7 +614,7 @@ function waterA(bad,lv=1){
     ${BANG(84,20,9)}
   </svg>`;
 }
-const MACH={feeder:{name:'餵食機',svg:feederA},water:{name:'飲水機',svg:waterA}};
+const MACH={feeder:{name:'餵食機',svg:feederA},water:{name:'飲水機',svg:waterA}}, MACH_NAMES=['餵食機','飲水機'];
 const AUTO_BAD={jam:'卡住了',steal:'被撞翻了',flood:'倒光了',power:'沒電了',noise:'怪怪的',spill:'水碗翻了'};
 const AUTO_FIX={jam:'拍一下',steal:'扶起來',flood:'裝回去',power:'換電池',noise:'拍一下',spill:'擦乾'};
 const AUTO_SAY={'feeder:jam':'（盯著餵食機）……今天的呢？','feeder:steal':'（打嗝）是它自己倒下來的，不是我','feeder:flood':'今天的餅乾一次全部出來了！（打嗝）',
@@ -667,7 +667,7 @@ function renderMachines(){
 }
 function autoLog(){
   const L=(AUTO&&AUTO.log||[]).slice().reverse();
-  modal(`<h3>機器動態</h3><p>餵食機每天 ${((AUTO&&AUTO.hours)||[18]).map(h=>String(h).padStart(2,'0')+':00').join('、')} 出一餐，飲水機隨時有水。料桶、水箱裝滿可以撐 ${STOCK()} 天，快沒了點一下就能補（免費）。偶爾會罷工，看到了幫忙修一下。</p>
+  modal(`<h3>機器動態</h3>
     <ul class="mach-log">${L.map(e=>`<li class="${e.k==='ok'||e.k==='wait'?'':'hot'}">${(MACH[e.m]||MACH.feeder).svg(!['ok','fix','new','gulp','refill','empty'].includes(e.k), e.k==='empty'?0:1)}<div><small>${whenLabel(e.t)}</small>${esc(logText(e))}</div></li>`).join('')||'<li>還沒有動態</li>'}</ul>
     <button class="btn" data-close>好</button>`);
 }
@@ -726,7 +726,8 @@ function renderNeeds(){
   set('#needF',f); set('#needW',w);
   const p=peeNow(), pe=box.querySelector('#needP');               // 尿尿條是越滿越急
   pe.querySelector('i').style.width=(p*100)+'%'; pe.classList.toggle('low',p>=.75); pe.classList.toggle('mid',p>=.5&&p<.75);
-  const who=[NEEDS.fb&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, NEEDS.wb&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${NEEDS.pk? ago(NEEDS.pk) : '之前'}帶去尿尿`].filter(Boolean).join('・');
+  const fam=b=>b&&!MACH_NAMES.includes(b);
+  const who=[fam(NEEDS.fb)&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, fam(NEEDS.wb)&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${NEEDS.pk? ago(NEEDS.pk) : '之前'}帶去尿尿`].filter(Boolean).join('・');
   box.querySelector('#needWho').textContent= who || (f<.25||w<.25||p>=.75? '阿布在等人照顧…' : '');
   renderMachines();
 }
@@ -822,12 +823,12 @@ function Home(){
       <div class="abu" id="abu" role="button" tabindex="0" aria-label="摸摸阿布"><img id="abuImg" alt="阿布"></div>
       <div class="fx" id="fx"></div>
     </div>
-    <div class="joy" id="joy" aria-live="polite"><span class="joy-dots">${LADDER.map(()=>'<i></i>').join('')}</span><span class="joy-label" id="joyLabel">點阿布的臉摸摸他，越摸越開心</span></div>
+    <div class="joy" id="joy" aria-live="polite"><span class="joy-dots">${LADDER.map(()=>'<i></i>').join('')}</span><span class="joy-label" id="joyLabel">摸摸我～</span></div>
     <div class="actions">
-      <button class="act" id="aPet"><svg><use href="#i-hand"/></svg>摸摸<small>按住是抓抓</small></button>
-      <button class="act" id="aFeed"><img class="ico" src="img/biscuit/bear.png" alt="">餵餅乾<small>用 1 片 · 止餓</small></button>
-      <button class="act" id="aDrink"><span class="ico-emoji">💧</span>喝水<small>免費</small></button>
-      <button class="act" id="aWalk"><svg><use href="#i-leash"/></svg>去散步<small>尿尿 · +2 好感</small></button>
+      <button class="act" id="aPet"><svg><use href="#i-hand"/></svg>摸摸</button>
+      <button class="act" id="aFeed"><img class="ico" src="img/biscuit/bear.png" alt="">餵餅乾<small>1 片</small></button>
+      <button class="act" id="aDrink"><span class="ico-emoji">💧</span>喝水</button>
+      <button class="act" id="aWalk"><svg><use href="#i-leash"/></svg>去散步</button>
     </div>
   </section>`);
   main.appendChild(s); renderLove(); renderLost(); renderNeeds();
@@ -866,7 +867,7 @@ function Home(){
     joy.querySelectorAll('.joy-dots i').forEach((d,i)=>d.classList.toggle('on',i<=tier));
     joy.classList.toggle('max',tier===LADDER.length-1);
     abu.dataset.tier=tier;
-    $('#joyLabel').textContent = bliss? '飛機耳開啟中…' : tier<0? '點阿布的臉摸摸他，越摸越開心' : `開心度：${LADDER[tier].label}`;
+    $('#joyLabel').textContent = bliss? '飛機耳開啟中…' : tier<0? '摸摸我～' : `開心度：${LADDER[tier].label}`;
   }
   function sleep(){ if(bliss) return; state='sleep'; combo=0; tier=-1; renderJoy(); setFace(FACES.sleep); say('呼…呼…'); abu.appendChild(zzz); }
   function wake(){
@@ -1035,18 +1036,18 @@ function Home(){
 /* ================= 小遊戲清單 ================= */
 function Games(){
   const s=h(`<section class="screen">
-    <div class="album-head"><div><h2>小遊戲</h2><p class="sub">贏了拿餅乾，餅乾可以餵阿布。</p></div><button class="btn sm" id="boardBtn">🏆 排行榜</button></div>
-    <button class="game-card" data-g="memory"><img class="thumb" src="img/face_60.jpg" alt=""><div><b>回憶翻牌</b><span>翻開兩張一樣的照片</span></div><span class="reward">+3~8<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="catch"><img class="thumb" src="${face('face_68')}" alt=""><div><b>阿布接零食</b><span>左右滑動接住食物，巧克力、葡萄、洋蔥不能吃</span></div><span class="reward">+1~10<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>點兩塊交換位置，拼回原來的照片</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="bowl"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>幫阿布裝飯</b><span>按住倒飼料，倒到剛剛好的份量</span></div><span class="reward">+3~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="quiz"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>阿布能不能吃？</b><span>葡萄可以嗎？地瓜呢？考考你</span></div><span class="reward">+1~6<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>阿布最愛坐車，到目的地後不肯下車</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>阿布怕人多、怕鞭炮，越緊張越想衝回家</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="stairs"><img class="thumb" src="img/face_stairs.jpg" alt=""><div><b>阿布下樓梯</b><span>一階一階往下跳，別被天花板刺到</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="seek"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>手電筒找阿布</b><span>露營的晚上阿布躲起來了，拿手電筒找</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="bbq"><img class="thumb" src="img/face_68.jpg" alt=""><div><b>營火烤肉</b><span>翻面烤熟，能吃的才分給阿布</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
-    <button class="game-card" data-g="tent"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>搭帳篷</b><span>快點搭好，阿布會一直來搗蛋</span></div><span class="reward">+2~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <div class="album-head"><div><h2>小遊戲</h2><p class="sub">贏餅乾餵阿布</p></div><button class="btn sm" id="boardBtn">🏆 排行榜</button></div>
+    <button class="game-card" data-g="memory"><img class="thumb" src="img/face_60.jpg" alt=""><div><b>回憶翻牌</b><span>找出一樣的</span></div><span class="reward">+3~8<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="catch"><img class="thumb" src="${face('face_68')}" alt=""><div><b>阿布接零食</b><span>接住零食</span></div><span class="reward">+1~10<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="puzzle"><img class="thumb" src="img/face_142.jpg" alt=""><div><b>照片拼圖</b><span>拼回阿布</span></div><span class="reward">+5<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="bowl"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>幫阿布裝飯</b><span>剛剛好就好</span></div><span class="reward">+3~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="quiz"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>阿布能不能吃？</b><span>葡萄可以嗎？</span></div><span class="reward">+1~6<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="car"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>阿布去兜風</b><span>到了不肯下車</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="walk"><img class="thumb" src="img/face_65.jpg" alt=""><div><b>陪阿布散步</b><span>社恐布出門</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="stairs"><img class="thumb" src="img/face_stairs.jpg" alt=""><div><b>阿布下樓梯</b><span>往下跳！</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="seek"><img class="thumb" src="img/face_143.jpg" alt=""><div><b>手電筒找阿布</b><span>阿布躲起來了</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="bbq"><img class="thumb" src="img/face_68.jpg" alt=""><div><b>營火烤肉</b><span>分阿布一點</span></div><span class="reward">+1~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
+    <button class="game-card" data-g="tent"><img class="thumb" src="img/face_66.jpg" alt=""><div><b>搭帳篷</b><span>阿布來搗蛋</span></div><span class="reward">+2~12<img class="ico" src="img/biscuit/bear.png" alt=""></span></button>
   </section>`);
   s.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ sfx.pop(); ac(); backTo='games'; go(b.dataset.g); });
   main.appendChild(s);
@@ -1121,7 +1122,6 @@ function showBoards(g0){
 function Memory(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('回憶翻牌','mstat'));
   const grid=h(`<div class="cards"></div>`); s.appendChild(grid);
-  s.appendChild(h(`<p class="hint">照片越多，牌組就越多變化</p>`));
   main.appendChild(s);
   const faces=['face_60','face_65','face_66','face_62','face_143','face_142','face_68'].map(k=>({key:k,html:`<img src="${face(k)}" alt="">`}));
   const photos=openPhotos().map(p=>({key:p.id,html:pimg(p,400,'alt=""')}));
@@ -1217,7 +1217,7 @@ function Catch(){
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawAvatar();
-    const m=modal(`<img class="face-img" src="${face('face_68')}" alt=""><h3>阿布肚子餓了</h3><p>手指在畫面上左右滑，讓阿布接住掉下來的食物。<br>吃到巧克力、葡萄、洋蔥會扣一顆愛心，40 秒內看你能拿幾分。</p><button class="btn" id="go">開始</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_68')}" alt=""><h3>阿布肚子餓了</h3><p>接住零食！有些不能吃喔</p><button class="btn" id="go">開始</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); start(); };
   }
   setTimeout(intro,50);
@@ -1227,7 +1227,7 @@ function Catch(){
 /* ================= 拼圖（用 CSS 背景裁切，雲端照片也能用） ================= */
 function Puzzle(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('照片拼圖','pstat'));
-  const ref=h(`<div class="ref"><img alt="完成圖"><span>完成的樣子。點一塊，再點另一塊，兩塊就會交換。</span></div>`); s.appendChild(ref);
+  const ref=h(`<div class="ref"><img alt="完成圖"><span>拼回這張</span></div>`); s.appendChild(ref);
   const board=h(`<div class="puzzle"></div>`); s.appendChild(board);
   main.appendChild(s);
   const p=pick(openPhotos()), url=purl(p,1000);
@@ -1564,7 +1564,6 @@ function bathDialog(B){
   const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布今天洗澡了？</h3>
     ${whoField('bBy','例：爸爸')}
     <label class="field">備註（可以不寫）<input id="bNote" maxlength="100" placeholder="例：去寵物美容、順便剪指甲"></label>
-    <p class="meta">有拍洗澡照的話，直接上傳照片也會自動算進來。</p>
     <div class="row"><button class="btn" id="bGo">記下來</button><button class="btn ghost" data-close>取消</button></div>`,()=>go('food',true));
   const goBtn=m.el.querySelector('#bGo');
   bindWho(m.el);
@@ -1940,11 +1939,11 @@ function Car(){
     if(phase==='over') return; phase='over'; cancelAnimationFrame(raf);
     const total=Math.floor(ride)+(won?BONUS:0), bones=Math.max(1,Math.min(12,Math.floor(total/10)));   // 每 10 秒換 1 片餅乾
     const best=Math.max(S.best.carTime||0,total), nb=best>(S.best.carTime||0); S.best.carTime=best; save();
-    winDialog({title: won?'成功拉下車！':'阿布死賴在車上', text:`阿布在車上待了 ${Math.floor(ride)} 秒${won?`，拉下車再 +${BONUS} 秒`:''}，總共 ${total} 秒${nb?'，新紀錄！':`（最高 ${best} 秒）`}<br>每 10 秒換 1 片餅乾。`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car'),rank:{game:'car',score:total}});
+    winDialog({title: won?'成功拉下車！':'阿布死賴在車上', text:`阿布在車上待了 ${Math.floor(ride)} 秒${won?`，拉下車再 +${BONUS} 秒`:''}，總共 ${total} 秒${nb?'，新紀錄！':`（最高 ${best} 秒）`}`, bones, faceKey: won?'face_62':'face_66', again:()=>go('car'),rank:{game:'car',score:total}});
   }
   function intro(){
     ctx.clearRect(0,0,W,H); drawWorld(0); carY=laneY(1); drawCar(0);
-    const m=modal(`<img class="face-img" src="${face('face_car1')}" alt=""><h3>阿布最愛坐車了</h3><p>點上、下換車道，閃開來車。<br>到了連打，把阿布拉下車！</p><button class="btn" id="go">出發！</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_car1')}" alt=""><h3>阿布最愛坐車了</h3><p>到了還要把他拉下車…</p><button class="btn" id="go">出發！</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(2); phase='drive'; t=0; speed=60; last=performance.now(); talk('出發囉！','face_car1',1.2); raf=requestAnimationFrame(frame); };
   }
   setTimeout(intro,50);
@@ -2155,10 +2154,10 @@ function Walk(){
     const m=Math.floor(walked/PX_M), bones=Math.max(1,Math.min(12,Math.floor(m/20)));      // 每 20 公尺換 1 片餅乾
     const best=Math.max(S.best.walkM||0,m), nb=best>(S.best.walkM||0); S.best.walkM=best; save();
     if(m>=20) careAbu('walk');                                  // 真的出門走過，就算尿過了
-    winDialog({title:'阿布拖著你衝回家了！', text:`今天散步了 ${m} 公尺${nb?'，新紀錄！':`（最高 ${best} 公尺）`}<br>每 20 公尺換 1 片餅乾。`, bones, faceKey:'face_62', again:()=>go('walk'),rank:{game:'walk',score:m}});
+    winDialog({title:'阿布拖著你衝回家了！', text:`今天散步了 ${m} 公尺${nb?'，新紀錄！':`（最高 ${best} 公尺）`}`, bones, faceKey:'face_62', again:()=>go('walk'),rank:{game:'walk',score:m}});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>左右拖，閃開人群和鞭炮。<br>阿布越想回家，就走得越快！</p><button class="btn" id="go">出門散步</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>阿布怕人多</h3><p>社恐布出門了</p><button class="btn" id="go">出門散步</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); phase='walk'; t=0; talk('慢慢走就好',1.4); };
   }
   last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
@@ -2185,7 +2184,6 @@ function drawToon(ctx,x,foot,hh,dir=-1,rot=0,cut=0){
 function Stairs(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('阿布下樓梯','sstat'));
   const wrap=h(`<div class="catch-wrap stairs-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span>手指左右滑，阿布跟著走；按住左邊、右邊也可以</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
   const F={}; ['face_stairs','face_60','face_143','face_66','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -2329,10 +2327,10 @@ function Stairs(){
     phase='done'; cancelAnimationFrame(raf);
     const bones=Math.max(1,Math.min(12,Math.floor(floors/5)));      // 每 5 樓換 1 片餅乾
     const best=Math.max(S.best.stairs||0,floors), nb=best>(S.best.stairs||0); S.best.stairs=best; save();
-    winDialog({title:`下到地下 ${floors} 樓`, text:`${nb?'新紀錄！':`最高 地下 ${best} 樓`}<br>每 5 樓換 1 片餅乾。`, bones, faceKey:'face_stairs', again:()=>go('stairs'), rank:{game:'stairs',score:floors}});
+    winDialog({title:`下到地下 ${floors} 樓`, text:`${nb?'新紀錄！':`最高 地下 ${best} 樓`}`, bones, faceKey:'face_stairs', again:()=>go('stairs'), rank:{game:'stairs',score:floors}});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_stairs')}" alt=""><h3>阿布下樓梯</h3><p>手指左右滑，阿布跟著走。<br>別被天花板刺到，也別掉下去！</p><button class="btn" id="go">開始</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_stairs')}" alt=""><h3>阿布下樓梯</h3><p>一階一階往下跳！</p><button class="btn" id="go">開始</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); reset(); phase='play'; last=performance.now(); talk('我下樓囉！','face_66',1); };
   }
   reset(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
@@ -2346,7 +2344,6 @@ function rr(ctx,x,y,w,h,r){ ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y
 function Seek(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('手電筒找阿布','kstat'));
   const wrap=h(`<div class="catch-wrap seek-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span>手指拖著手電筒，光圈停在阿布身上就找到了</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), dk=document.createElement('canvas'), dctx=dk.getContext('2d'), INK='#2B2723';
   const F={}; ['face_143','face_60','face_66','face_65','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -2522,10 +2519,10 @@ function Seek(){
     phase='done'; cancelAnimationFrame(raf);
     const bones=Math.max(1,Math.min(12,Math.floor(found/2)));          // 每找到 2 次 1 片餅乾
     const best=Math.max(S.best.seek||0,found), nb=best>(S.best.seek||0); S.best.seek=best; save();
-    winDialog({title:`找到阿布 ${found} 次`, text:`${nb?'新紀錄！':`最高 ${best} 次`}<br>每找到 2 次換 1 片餅乾。`, bones, faceKey:'face_66', again:()=>go('seek'), rank:{game:'seek',score:found}});
+    winDialog({title:`找到阿布 ${found} 次`, text:`${nb?'新紀錄！':`最高 ${best} 次`}`, bones, faceKey:'face_66', again:()=>go('seek'), rank:{game:'seek',score:found}});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>手電筒找阿布</h3><p>露營的晚上，阿布躲起來了！<br>手指拖著手電筒，照到捲尾巴、耳朵或反光的眼睛，停一下就找到了。<br>小心別照到野貓、狸貓。</p><button class="btn" id="go">開始</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>手電筒找阿布</h3><p>阿布躲起來了！</p><button class="btn" id="go">開始</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); round=0; found=0; left=START; bx=tx=W/2; by=ty=H*.12; layout(); phase='play'; last=performance.now(); talk('阿布？你在哪裡？',1.4); };
   }
   /* 手電筒先照天空，不會一開始就剛好照到阿布 */
@@ -2548,7 +2545,6 @@ const BBQ_ITEMS=[
 function Bbq(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('營火烤肉','qstat'));
   const wrap=h(`<div class="catch-wrap bbq-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span>點一下翻面・熟了拖到盤子或阿布・<b class="no">香腸、玉米、棉花糖、洋蔥</b>不能給阿布</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
   const F={}; ['face_143','face_60','face_66','face_65','face_68','face_62'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -2660,10 +2656,10 @@ function Bbq(){
     phase='done'; cancelAnimationFrame(raf);
     const bones=Math.max(1,Math.min(12,Math.floor(score/20)));        // 每 20 分 1 片餅乾
     const best=Math.max(S.best.bbq||0,score), nb=best>(S.best.bbq||0); S.best.bbq=best; save();
-    winDialog({title:`烤肉拿到 ${score} 分`, text:`${nb?'新紀錄！':`最高 ${best} 分`}<br>每 20 分換 1 片餅乾。`, bones, faceKey:'face_66', again:()=>go('bbq'), rank:{game:'bbq',score}});
+    winDialog({title:`烤肉拿到 ${score} 分`, text:`${nb?'新紀錄！':`最高 ${best} 分`}`, bones, faceKey:'face_66', again:()=>go('bbq'), rank:{game:'bbq',score}});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>營火烤肉</h3><p>點一下翻面，下面那面會冒煙，煙越黑越焦。<br>兩面都熟了，拖到盤子給家人，或拖給阿布。<br>阿布只能吃<b>雞肉、地瓜、蝦</b>，香腸、玉米、棉花糖、洋蔥不能給！</p><button class="btn" id="go">開始</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_143')}" alt=""><h3>營火烤肉</h3><p>烤熟了分阿布一點</p><button class="btn" id="go">開始</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); slots.forEach(sl=>sl.it=null); score=0; left=TIME; t=0; spawnT=0; flareT=8; flare=0; lastBeg=0; phase='play'; last=performance.now(); talk('好香喔～','face_68',1.4); };
   }
   last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
@@ -2676,7 +2672,6 @@ function Bbq(){
 function Tent(){
   const s=h(`<section class="screen"></section>`); s.appendChild(gameBar('搭帳篷','tstat'));
   const wrap=h(`<div class="catch-wrap tent-wrap"><canvas></canvas></div>`); s.appendChild(wrap);
-  s.appendChild(h(`<div class="legend"><span>照順序把東西拖到營地・阿布來搗蛋就點他</span></div>`));
   main.appendChild(s);
   const cv=wrap.querySelector('canvas'), ctx=cv.getContext('2d'), INK='#2B2723';
   const F={}; ['face_66','face_60','face_62','face_143','face_65','face_68'].forEach(k=>{ const im=new Image(); im.src=face(k); F[k]=im; });
@@ -2852,7 +2847,7 @@ function Tent(){
     winDialog({title:'帳篷搭好了！', text:`花了 ${sec} 秒${nb?'，新紀錄！':`（最快 ${prev} 秒）`}<br>阿布第一個鑽進去睡了。`, bones, faceKey:'face_62', again:()=>go('tent'), rank:{game:'tent',score:sec}});
   }
   function intro(){
-    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>搭帳篷</h3><p>照順序把地墊、內帳、營柱、外帳、營釘拖到營地。<br>阿布會一直來搗蛋：叼走營釘、躺在地墊上、咬帳篷往後拉，<b>點他</b>就會停。<br>越快搭好，餅乾越多！</p><button class="btn" id="go">開始</button>`);
+    const m=modal(`<img class="face-img" src="${face('face_66')}" alt=""><h3>搭帳篷</h3><p>阿布會來搗蛋…</p><button class="btn" id="go">開始</button>`);
     m.el.querySelector('#go').onclick=()=>{ m.el.remove(); ac(); bark(1); setup(); t=0; phase='play'; last=performance.now(); talk('我來幫忙！',1.4); };
   }
   setup(); last=performance.now(); raf=requestAnimationFrame(frame); setTimeout(intro,50);
