@@ -547,11 +547,50 @@ const fullNow=()=>Math.max(0,Math.min(1,NEEDS.f-(Date.now()-NEEDS.ft)/NEED_EAT))
 const waterNow=()=>Math.max(0,Math.min(1,NEEDS.w-(Date.now()-NEEDS.wt)/NEED_DRINK));
 /* 尿尿＝水分慢慢變少時，40% 轉成尿（水喝完了就不再增加） */
 const waterAt=t=>Math.max(0,NEEDS.w-Math.max(0,t-NEEDS.wt)/NEED_DRINK);
-const peeNow=()=>{ const now=Date.now(), pt=NEEDS.pt||now; return Math.max(0,Math.min(1,(NEEDS.p||0)+PEE_SHARE*(waterAt(pt)-waterAt(now)))); };
+const peeAt=t=>{ const pt=NEEDS.pt||t; return Math.max(0,Math.min(1,(NEEDS.p||0)+PEE_SHARE*(waterAt(pt)-waterAt(t)))); };
+const peeNow=()=>peeAt(Date.now());
 const hungry=()=>fullNow()<.25, thirsty=()=>waterNow()<.25, mustPee=()=>peeNow()>=.75, needy=()=>hungry()||thirsty()||mustPee();
 let careBusy=0;
 /* 還有自己按的沒回來時，先別被較舊的雲端資料蓋掉 */
-function setNeeds(n){ if(n&&typeof n.f==='number'&&!careBusy){ NEEDS=n; lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
+function setNeeds(n){ if(n&&typeof n.f==='number'&&!careBusy){ NEEDS=Object.assign({},n,{_at:Date.now()}); lsSet('abu-needs',NEEDS); if(current==='home') renderNeeds(); } }
+/* 上次拿到雲端狀態之後，餵食機（晚上那餐）、飲水機（每小時補水）該做的先在手機上補算，
+ * 一打開就是對的；雲端的回來再蓋掉（萬一機器罷工，以雲端為準） */
+function localCatchUp(){
+  const now=Date.now(), A=AUTO;
+  const from=Math.max(NEEDS._at||Math.max(NEEDS.ft||0,NEEDS.wt||0,NEEDS.pt||0), now-3*864e5);
+  NEEDS._at=now;
+  if(!A||!A.feeder||!A.water||now-from<60e3) return;
+  const slots=[], d=new Date(from); d.setHours(0,0,0,0);
+  for(;d.getTime()<=now;d.setDate(d.getDate()+1)){
+    const at=h=>new Date(d.getFullYear(),d.getMonth(),d.getDate(),h).getTime();
+    (A.hours||[18]).forEach(h=>{ const t=at(h); if(t>from&&t<=now) slots.push({t,m:'feeder'}); });
+    for(let h=0;h<24;h++){ const t=at(h); if(t>from&&t<=now) slots.push({t,m:'water'}); }
+  }
+  if(!slots.length) return;
+  slots.sort((a,b)=>a.t-b.t||(a.m==='feeder'?-1:1)).forEach(({t,m})=>{
+    if(m==='feeder'){
+      if(A.feeder.bad||!(A.feeder.left>0)) return;
+      const tt=Math.max(t,NEEDS.ft||0);
+      NEEDS.f=Math.max(.8,Math.max(0,NEEDS.f-(tt-NEEDS.ft)/NEED_EAT)); NEEDS.ft=tt; NEEDS.fb='餵食機'; A.feeder.left--;
+    } else {
+      if(A.water.bad||t>(A.water.until||0)) return;
+      const tt=Math.max(t,NEEDS.wt||0,NEEDS.pt||0);
+      NEEDS.p=peeAt(tt); NEEDS.pt=tt;
+      if(waterAt(tt)<1){ NEEDS.w=1; NEEDS.wt=tt; NEEDS.wb='飲水機'; }
+    }
+  });
+  lsSet('abu-needs',NEEDS); lsSet('abu-auto',A);
+}
+/* 一打開（或從背景切回來）就跟雲端拿一次狀態，不用等整本相簿 */
+let needsAt=0;
+async function loadNeeds(){
+  if(!API_URL||Date.now()-needsAt<15e3) return; needsAt=Date.now();
+  try{ const r=await fetch(API_URL+'?action=needs'); const j=await r.json();
+    if(j.ok){ if(j.auto) setAuto(j.auto); if(j.needs) setNeeds(j.needs); } }catch(e){}
+}
+function backToApp(){ if(current==='home') renderNeeds(); loadNeeds(); }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') backToApp(); });
+window.addEventListener('pageshow',e=>{ if(e.persisted) backToApp(); });
 async function careAbu(kind){                                 // 先在手機上更新，再告訴雲端（全家同步）
   const now=Date.now();
   if(kind==='walk'){ NEEDS=Object.assign({},NEEDS,{p:0,pt:now,pk:now,pb:S.me||''}); }
@@ -807,6 +846,8 @@ async function refillMachine(m,el,wait=450){
 const ago=t=>{ const m=Math.round((Date.now()-t)/60000); return m<1?'剛剛': m<60? `${m} 分鐘前` : m<1440? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
 function renderNeeds(){
   const box=$('#needs'); if(!box) return;
+  localCatchUp();
+  const first=!box.dataset.shown; if(first){ box.dataset.shown=1; box.classList.add('noanim'); }   // 一進來直接畫到位，不要從滿的慢慢降
   const f=fullNow(), w=waterNow();
   const set=(id,v)=>{ const el=box.querySelector(id); el.querySelector('i').style.width=(v*100)+'%'; el.classList.toggle('low',v<.25); el.classList.toggle('mid',v>=.25&&v<.5); };
   set('#needF',f); set('#needW',w);
@@ -816,6 +857,7 @@ function renderNeeds(){
   const who=[fam(NEEDS.fb)&&`${NEEDS.fb} ${ago(NEEDS.ft)}餵過`, fam(NEEDS.wb)&&`${NEEDS.wb} ${ago(NEEDS.wt)}給水`, NEEDS.pb&&`${NEEDS.pb} ${NEEDS.pk? ago(NEEDS.pk) : '之前'}帶去尿尿`].filter(Boolean).join('・');
   box.querySelector('#needWho').textContent= who || (f<.25||w<.25||p>=.75? '阿布在等人照顧…' : '');
   renderMachines();
+  if(first) requestAnimationFrame(()=>requestAnimationFrame(()=>box.classList.remove('noanim')));
 }
 
 /* ================= 主畫面 ================= */
@@ -3422,4 +3464,4 @@ function openReel(list,idx){
 }
 
 /* ---------------- 啟動 ---------------- */
-renderTop(); go('home'); loadPhotos(false);
+loadNeeds(); renderTop(); go('home'); loadPhotos(false);
