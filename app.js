@@ -844,6 +844,16 @@ async function refillMachine(m,el,wait=450){
     if(j&&j.ok){ if(j.needs) setNeeds(j.needs); if(j.auto) setAuto(j.auto); } }
 }
 const ago=t=>{ const m=Math.round((Date.now()-t)/60000); return m<1?'剛剛': m<60? `${m} 分鐘前` : m<1440? `${Math.round(m/60)} 小時前` : `${Math.round(m/1440)} 天前`; };
+/* 太久沒洗澡（超過設定的天數）：阿布頭上冒味道線 */
+function renderStink(){
+  const a=$('#abu'); if(!a||a.querySelector('.bathfx')) return;
+  let due=false; try{ due=bathInfo().state==='due'; }catch(e){}
+  const s=a.querySelector('.stink');
+  if(due&&!s) a.appendChild(h(`<div class="stink" aria-hidden="true"><svg viewBox="0 0 200 60">
+      <g transform="rotate(-18 40 60)"><path d="M30 60q-7-7 0-14t0-14t0-14"/><path d="M42 58q-7-7 0-14t0-14t0-14"/><path d="M54 60q-7-7 0-14t0-14t0-14"/></g>
+      <g transform="rotate(18 160 60)"><path d="M146 60q7-7 0-14t0-14t0-14"/><path d="M158 58q7-7 0-14t0-14t0-14"/><path d="M170 60q7-7 0-14t0-14t0-14"/></g></svg></div>`));
+  else if(!due&&s) s.remove();
+}
 function renderNeeds(){
   const box=$('#needs'); if(!box) return;
   localCatchUp();
@@ -858,6 +868,7 @@ function renderNeeds(){
   box.querySelector('#needWho').textContent= who || (f<.25||w<.25||p>=.75? '阿布在等人照顧…' : '');
   renderMachines();
   if(first) requestAnimationFrame(()=>requestAnimationFrame(()=>box.classList.remove('noanim')));
+  renderStink();
 }
 
 /* ================= 主畫面 ================= */
@@ -953,10 +964,10 @@ function Home(){
     </div>
     <div class="joy" id="joy" aria-live="polite"><span class="joy-dots">${LADDER.map(()=>'<i></i>').join('')}</span><span class="joy-label" id="joyLabel">摸摸我～</span></div>
     <div class="actions">
-      <button class="act" id="aPet"><svg><use href="#i-hand"/></svg>摸摸</button>
       <button class="act" id="aFeed"><img class="ico" src="img/biscuit/bear.png" alt="">餵餅乾<small>1 片</small></button>
       <button class="act" id="aDrink"><span class="ico-emoji">💧</span>喝水</button>
       <button class="act" id="aWalk"><svg><use href="#i-leash"/></svg>去散步</button>
+      <button class="act" id="aBath"><svg><use href="#i-bath"/></svg>洗澡</button>
     </div>
   </section>`);
   main.appendChild(s); renderLove(); renderLost(); renderNeeds();
@@ -1091,7 +1102,6 @@ function Home(){
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>abu.addEventListener(ev,holdEnd));
   abu.addEventListener('contextmenu',e=>e.preventDefault());
   abu.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pet(); } });
-  $('#aPet').onclick=()=>pet();
 
   /* 餵餅乾：只止餓、不加好感（全家共用的飽足度）；吃飽了就不扣餅乾 */
   $('#aFeed').onclick=()=>{
@@ -1129,6 +1139,38 @@ function Home(){
     };
     const photo=()=>modal(`<h3>${urgent?'終於尿出來了～':'出門散步囉！'}</h3>${pimg(p,1200,`class="big-photo" alt="${esc(p.cap||'阿布')}"`)}${p.cap?`<p>${esc(p.cap)}</p>`:''}<button class="btn" data-close>回家</button>`,after);
     if(canStreet()) streetWalk(photo,after); else photo();     // 有街景就從家門口真的走出去
+  };
+
+  /* 洗澡：泡泡蓋滿頭、甩甩甩、洗香香；記成全家的洗澡紀錄（日常的「上次洗澡」也會更新） */
+  let bathing=false;
+  $('#aBath').onclick=()=>{
+    ac(); resetIdle(); wake();
+    if(bathing) return;
+    const B=bathInfo();
+    if(B.last&&B.days!==null&&B.days<Math.min(7,Math.ceil(B.every/2))){
+      mood(pick(FACES.look),1800); say(pick(['才剛洗過，不要啦！','（夾著尾巴躲起來）','我很香了，不用洗']));
+      abu.classList.remove('wiggle'); void abu.offsetWidth; abu.classList.add('wiggle'); tone(240,.25,'sine',.08,-40); return;
+    }
+    bathing=true; clearTimeout(revert); setFace('face_143'); say(pick(['要洗澡？！','（想逃跑）','不要啦～']));
+    const st=abu.querySelector('.stink'); if(st) st.remove();
+    const bub=[]; for(let i=0;i<16;i++){ const a=Math.PI*(1.08+.84*i/15), r=46+(i%3)*3;     // 頭頂一圈泡泡
+      bub.push([50+Math.cos(a)*r, 50+Math.sin(a)*r*.95, 12+(i*7)%9, i*55]); }
+    for(let i=0;i<9;i++) bub.push([22+(i*29)%56, 18+(i*17)%42, 8+(i*5)%8, 400+i*70]);   // 臉上也有
+    const fxb=h(`<div class="bathfx">${bub.map(([x,y,s,d])=>`<i style="left:${x}%;top:${y}%;width:${s}%;height:${s}%;animation-delay:${d}ms,${d+350}ms"></i>`).join('')}</div>`);
+    abu.appendChild(fxb);
+    for(let k=0;k<8;k++) tone(700+((k*137)%300),.06,'sine',.05,260,.1+k*.17);              // 啵啵啵
+    setTimeout(()=>{ say('（甩甩甩）'); fxb.classList.add('pop'); abu.classList.remove('wiggle'); abu.classList.add('shakedry');
+      for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, d=110+Math.random()*60;
+        const w=h(`<span class="wdrop" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;--r:${a*57+90}deg;animation-delay:${k*40}ms"></span>`); fx.appendChild(w); setTimeout(()=>w.remove(),1400); }
+      for(let k=0;k<4;k++) tone(380-k*30,.07,'triangle',.05,-120,k*.22);
+    },2000);
+    setTimeout(()=>{ fxb.remove(); abu.classList.remove('shakedry'); bathing=false;
+      mood('face_60',2600); say(pick(['洗香香了！聞聞看～','毛蓬蓬的！','我剛剛很勇敢喔']),true); hearts(4); scheduleDecay(); },3000);
+    /* 先在手機上算洗過了（味道線馬上消失），再記到雲端 */
+    const f={t:Date.now(),by:S.me||'',meal:CAT_BATH,note:''};
+    if(API_URL){ FEEDS=[...FEEDS,f]; lsSet('abu-feeds',FEEDS); }
+    addLove(2);
+    logFeed(CAT_BATH,S.me||'','').catch(()=>{ if(API_URL){ FEEDS=FEEDS.filter(x=>x!==f); lsSet('abu-feeds',FEEDS); renderStink(); } toast('沒記到洗澡，等一下再試一次'); });
   };
 
   /* 進場 */
