@@ -1700,7 +1700,7 @@ const ptime = p => p.taken||p.t||0;
 const fmtDay = t => { const d=new Date(t), y=new Date().getFullYear(); return `${d.getFullYear()!==y?d.getFullYear()+'/':''}${d.getMonth()+1}/${d.getDate()}（${WEEK[d.getDay()]}）`; };
 const dayStart = t => { const d=new Date(t); d.setHours(0,0,0,0); return d.getTime(); };
 function bathInfo(){
-  const every=Math.max(3,parseInt(CONFIG.bathDays,10)||30);
+  const every=Math.max(3,parseInt(CONFIG.bathDays,10)||7);
   const photos=pool().filter(p=>p.cat===CAT_BATH&&!p.sample).sort((a,b)=>ptime(b)-ptime(a));
   const logs=feedsAll().filter(f=>f.meal===CAT_BATH).sort((a,b)=>b.t-a.t);
   const cands=[];
