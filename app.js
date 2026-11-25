@@ -1088,7 +1088,7 @@ function Home(){
     tier=Math.max(tier,2); combo=Math.max(combo,LADDER[2].at); renderJoy();
     setFace(pick(LADDER[tier].faces)); hideEars(); say(pick(['再抓一下嘛','好舒服喔','那邊那邊！'])); scheduleDecay();
   }
-  abu.addEventListener('pointerdown',e=>{ try{ abu.setPointerCapture(e.pointerId); }catch(x){} pet(e); holdStart(); });
+  abu.addEventListener('pointerdown',e=>{ if(bathing) return; try{ abu.setPointerCapture(e.pointerId); }catch(x){} pet(e); holdStart(); });
   /* 按住時手指移動：手跟著手指在頭上摸來摸去，摸越多越開心 */
   abu.addEventListener('pointermove',e=>{
     if(!bliss) return;
@@ -1101,7 +1101,7 @@ function Home(){
   });
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>abu.addEventListener(ev,holdEnd));
   abu.addEventListener('contextmenu',e=>e.preventDefault());
-  abu.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pet(); } });
+  abu.addEventListener('keydown',e=>{ if(bathing) return; if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pet(); } });
 
   /* 餵餅乾：只止餓、不加好感（全家共用的飽足度）；吃飽了就不扣餅乾 */
   $('#aFeed').onclick=()=>{
@@ -1141,8 +1141,23 @@ function Home(){
     if(canStreet()) streetWalk(photo,after); else photo();     // 有街景就從家門口真的走出去
   };
 
-  /* 洗澡：泡泡蓋滿頭、甩甩甩、洗香香；記成全家的洗澡紀錄（日常的「上次洗澡」也會更新） */
-  let bathing=false;
+  /* 洗澡（約 9 秒）：蓮蓬頭淋濕 → 泡泡搓搓 → 沖水 → 甩甩甩 → 毛巾擦擦 → 吹風機吹乾（暖風、飛機耳、毛亂飛）→ 毛蓬蓬、亮晶晶
+   * 記成全家的洗澡紀錄（日常的「上次洗澡」也會更新） */
+  let bathing=false; const bathT=[];
+  const later=(ms,f)=>bathT.push(setTimeout(f,ms));
+  const SHOWER='<svg viewBox="0 0 100 70"><path d="M50 0v14" stroke="#B9C3CC" stroke-width="7" stroke-linecap="round"/><path d="M14 40a36 22 0 0 1 72 0z" fill="#DDE4EA" stroke="#B9C3CC" stroke-width="3"/><rect x="12" y="38" width="76" height="8" rx="4" fill="#C7D0D8"/>'+[24,36,50,64,76].map(x=>`<circle cx="${x}" cy="42" r="2" fill="#8CA0B2"/>`).join('')+'</svg>';
+  const DRYER='<svg viewBox="0 0 100 84"><rect x="62" y="44" width="15" height="36" rx="7" transform="rotate(14 70 44)" fill="#E98FA3"/><rect x="4" y="22" width="44" height="22" rx="6" fill="#F4A9B8"/><rect x="2" y="20" width="8" height="26" rx="3" fill="#E98FA3"/><circle cx="64" cy="33" r="27" fill="#F4A9B8"/><circle cx="64" cy="33" r="15" fill="#FBD3DB"/>'+[0,1,2,3,4,5].map(k=>`<path d="M64 33 L${64+13*Math.cos(k*1.047)} ${33+13*Math.sin(k*1.047)}" stroke="#E98FA3" stroke-width="3" stroke-linecap="round"/>`).join('')+'<circle cx="64" cy="33" r="4" fill="#E98FA3"/></svg>';
+  const TOWEL='<svg viewBox="0 0 120 70"><path d="M6 10 Q60 -6 114 10 L108 62 Q60 50 12 62 Z" fill="#9FD3E8"/><path d="M8 20 Q60 6 112 20" stroke="#fff" stroke-width="5" fill="none"/><path d="M10 30 Q60 16 110 30" stroke="#7DBFD9" stroke-width="3" fill="none"/>'+[18,32,46,60,74,88,102].map(x=>`<path d="M${x} ${x<60?58-(x-12)/6:50+(x-60)/6} v8" stroke="#7DBFD9" stroke-width="3" stroke-linecap="round"/>`).join('')+'</svg>';
+  const AIR='<svg viewBox="0 0 200 120" preserveAspectRatio="none">'+[18,42,66,90].map((y,k)=>`<path d="M200 ${y} q-25 -10 -50 0 t-50 0 t-50 0 t-50 0" style="animation-delay:${k*120}ms"/>`).join('')+'</svg>';
+  /* 沙沙的水聲、吹風機的嗡嗡聲（白噪音過濾） */
+  function hiss(dur,f,type,vol,delay=0){
+    if(!S.sound) return; const c=ac(); if(!c) return; const t=c.currentTime+delay;
+    const n=c.createBuffer(1,Math.ceil(c.sampleRate*dur),c.sampleRate), d=n.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(), fl=c.createBiquadFilter(), g=c.createGain(); src.buffer=n; fl.type=type; fl.frequency.value=f; fl.Q.value=.8;
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+.12); g.gain.setValueAtTime(vol,t+Math.max(.15,dur-.2)); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    src.connect(fl).connect(g).connect(c.destination); src.start(t); src.stop(t+dur+.02);
+  }
+  const scrub=()=>{ abu.classList.remove('wiggle'); void abu.offsetWidth; abu.classList.add('wiggle'); };
   $('#aBath').onclick=()=>{
     ac(); resetIdle(); wake();
     if(bathing) return;
@@ -1151,21 +1166,69 @@ function Home(){
       mood(pick(FACES.look),1800); say(pick(['才剛洗過，不要啦！','（夾著尾巴躲起來）','我很香了，不用洗']));
       abu.classList.remove('wiggle'); void abu.offsetWidth; abu.classList.add('wiggle'); tone(240,.25,'sine',.08,-40); return;
     }
-    bathing=true; clearTimeout(revert); setFace('face_143'); say(pick(['要洗澡？！','（想逃跑）','不要啦～']));
+    bathing=true; clearTimeout(revert); hideEars(); setFace('face_143'); say(pick(['要洗澡？！','（想逃跑）','不要啦～']));
     const st=abu.querySelector('.stink'); if(st) st.remove();
-    const bub=[]; for(let i=0;i<16;i++){ const a=Math.PI*(1.08+.84*i/15), r=46+(i%3)*3;     // 頭頂一圈泡泡
-      bub.push([50+Math.cos(a)*r, 50+Math.sin(a)*r*.95, 12+(i*7)%9, i*55]); }
-    for(let i=0;i<9;i++) bub.push([22+(i*29)%56, 18+(i*17)%42, 8+(i*5)%8, 400+i*70]);   // 臉上也有
-    const fxb=h(`<div class="bathfx">${bub.map(([x,y,s,d])=>`<i style="left:${x}%;top:${y}%;width:${s}%;height:${s}%;animation-delay:${d}ms,${d+350}ms"></i>`).join('')}</div>`);
-    abu.appendChild(fxb);
-    for(let k=0;k<8;k++) tone(700+((k*137)%300),.06,'sine',.05,260,.1+k*.17);              // 啵啵啵
-    setTimeout(()=>{ say('（甩甩甩）'); fxb.classList.add('pop'); abu.classList.remove('wiggle'); abu.classList.add('shakedry');
+    /* 1. 蓮蓬頭淋濕 */
+    const rain=[...Array(14)].map((_,i)=>`<b style="left:${4+(i*37)%92}%;animation-delay:${(i*71)%450}ms;animation-duration:${380+(i*53)%160}ms"></b>`).join('');
+    const fxb=h(`<div class="bathfx"><div class="shower">${SHOWER}</div><div class="rain on">${rain}</div><div class="suds"></div></div>`);
+    abu.appendChild(fxb); abu.classList.add('wet');
+    const rainEl=fxb.querySelector('.rain'), showerEl=fxb.querySelector('.shower'), suds=fxb.querySelector('.suds');
+    hiss(1.4,3200,'highpass',.06);
+    later(700,()=>say(pick(['（閉眼忍耐）','（變成落湯布）','嗚…濕掉了'])));
+    /* 2. 泡泡搓搓搓 */
+    later(1400,()=>{
+      rainEl.classList.remove('on');
+      const bub=[]; for(let i=0;i<16;i++){ const a=Math.PI*(1.08+.84*i/15), r=46+(i%3)*3;     // 頭頂一圈泡泡
+        bub.push([50+Math.cos(a)*r, 50+Math.sin(a)*r*.95, 12+(i*7)%9, i*55]); }
+      for(let i=0;i<9;i++) bub.push([22+(i*29)%56, 18+(i*17)%42, 8+(i*5)%8, 400+i*70]);   // 臉上也有
+      suds.innerHTML=bub.map(([x,y,s,d])=>`<i style="left:${x}%;top:${y}%;width:${s}%;height:${s}%;animation-delay:${d}ms,${d+350}ms"></i>`).join('')
+        +[...Array(6)].map((_,i)=>`<i class="up" style="left:${18+i*13}%;top:${30+(i*23)%40}%;width:${5+i%3*2}%;height:${5+i%3*2}%;animation-delay:${600+i*180}ms"></i>`).join('');   // 飄上去的小泡泡
+      for(let k=0;k<8;k++) tone(700+((k*137)%300),.06,'sine',.05,260,.1+k*.17);              // 啵啵啵
+      later(250,()=>say(pick(['（被搓成泡泡布）','癢癢的…','（偷舔泡泡）'])));
+      [500,1000].forEach(ms=>later(ms,scrub));
+    });
+    /* 3. 沖水 */
+    later(3000,()=>{ rainEl.classList.add('on'); fxb.classList.add('pop'); hiss(.8,3200,'highpass',.06);
+      for(let k=0;k<5;k++) tone(900-k*60,.05,'sine',.04,-200,k*.1); });
+    /* 4. 甩甩甩 */
+    later(3800,()=>{ rainEl.classList.remove('on'); showerEl.classList.add('out'); suds.innerHTML='';
+      say('（甩甩甩）'); abu.classList.remove('wiggle'); abu.classList.add('shakedry');
       for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, d=110+Math.random()*60;
         const w=h(`<span class="wdrop" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;--r:${a*57+90}deg;animation-delay:${k*40}ms"></span>`); fx.appendChild(w); setTimeout(()=>w.remove(),1400); }
       for(let k=0;k<4;k++) tone(380-k*30,.07,'triangle',.05,-120,k*.22);
-    },2000);
-    setTimeout(()=>{ fxb.remove(); abu.classList.remove('shakedry'); bathing=false;
-      mood('face_60',2600); say(pick(['洗香香了！聞聞看～','毛蓬蓬的！','我剛剛很勇敢喔']),true); hearts(4); scheduleDecay(); },3000);
+    });
+    /* 5. 毛巾擦擦擦 */
+    later(4600,()=>{
+      abu.classList.remove('shakedry');
+      const tw=h(`<div class="towel">${TOWEL}</div>`); fxb.appendChild(tw);
+      say(pick(['（被毛巾包成一顆球）','擦擦擦…','（從毛巾裡探頭）']));
+      for(let k=0;k<6;k++) hiss(.18,600,'lowpass',.05,.15+k*.2);          // 沙沙沙
+      later(1100,()=>{ tw.classList.add('out'); abu.classList.add('damp'); });
+    });
+    /* 6. 吹風機：暖風吹過來、毛往旁邊飛、舒服到開飛機耳 */
+    later(6000,()=>{
+      const dr=h(`<div class="dryer">${DRYER}</div>`), air=h(`<div class="blow">${AIR}</div>`);
+      fxb.appendChild(air); fxb.appendChild(dr);
+      hiss(2.3,900,'bandpass',.07); tone(150,2.3,'triangle',.025);
+      say(pick(['吹風機好吵…','（耳朵被吹得往後飛）','暖暖的～']));
+      later(250,()=>abu.classList.remove('wet','damp'));                       // 毛慢慢變乾（CSS 漸變）
+      for(let k=0;k<10;k++) later(150+k*190,()=>{                         // 毛被吹得亂飛
+        const ang=Math.PI+(Math.random()-.5)*1.1, d=90+Math.random()*70, y0=(Math.random()-.5)*120;
+        const t=h(`<span class="tuft" style="--y0:${y0}px;--dx:${Math.cos(ang)*d}px;--dy:${Math.sin(ang)*d}px;--r:${Math.random()*360}deg"></span>`);
+        fx.appendChild(t); setTimeout(()=>t.remove(),1200); });
+      later(700,()=>{ showEars(); });
+      later(1300,()=>say(pick(['（眼睛瞇起來）','好舒服喔…','再吹一下嘛'])));
+      later(2300,()=>{ dr.classList.add('out'); air.classList.add('out'); });
+    });
+    /* 7. 毛蓬蓬、亮晶晶 */
+    later(8400,()=>{
+      hideEars(); abu.classList.add('fluffy');
+      for(let k=0;k<9;k++){ const a=k/9*Math.PI*2, d=120+(k%3)*18;
+        const sp=h(`<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${k*60}ms">✦</span>`); fx.appendChild(sp); setTimeout(()=>sp.remove(),1500); }
+      [1047,1319,1568].forEach((f,k)=>tone(f,.25,'sine',.06,0,k*.09));
+      mood('face_60',2600); say(pick(['洗香香了！聞聞看～','毛蓬蓬的！','我剛剛很勇敢喔']),true); hearts(5);
+    });
+    later(9100,()=>{ fxb.remove(); abu.classList.remove('fluffy','wet','damp','shakedry'); bathing=false; scheduleDecay(); });
     /* 先在手機上算洗過了（味道線馬上消失），再記到雲端 */
     const f={t:Date.now(),by:S.me||'',meal:CAT_BATH,note:''};
     if(API_URL){ FEEDS=[...FEEDS,f]; lsSet('abu-feeds',FEEDS); }
@@ -1198,9 +1261,9 @@ function Home(){
     setTimeout(()=>{ addBones(g.gift); toast(g.missed? `阿布把藏起來的 ${g.gift} 片餅乾都給你了` : `阿布叼來今天的 ${g.gift} 片餅乾`,2400); },g.mood==='miss'?2200:700);
   }
   resetIdle();
-  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
+  const chatter=setInterval(()=>{ if(state!=='sleep'&&!bliss&&!bathing&&tier<0&&Date.now()-lastTap>8000) say(autoBad().length&&Math.random()<.45? pick(AUTO_NAG[pick(autoBad())]) : mustPee()&&Math.random()<.6? pick(['想出門…','（叼著牽繩過來）','（在門口轉圈圈）','（扒門）']) : hungry()&&Math.random()<.6? pick(['肚子好餓…','有沒有餅乾？','（盯著餅乾罐）']) : thirsty()&&Math.random()<.6? pick(['好渴喔…','想喝水','（舔舔嘴巴）']) : Math.random()<.25&&bathInfo().state==='due'? '我好像有點狗味了…該洗澡了嗎？' : pick(LINES.idle)); },9000);
   const needT=setInterval(renderNeeds,30000);
-  cleanup=()=>{ onToday=null; onAuto=null; homeSay=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
+  cleanup=()=>{ bathT.forEach(clearTimeout); onToday=null; onAuto=null; homeSay=null; clearTimeout(idle); clearTimeout(revert); clearTimeout(decay); clearTimeout(holdT); clearInterval(blissT); clearInterval(chatter); clearInterval(needT); };
 }
 
 /* ================= 小遊戲清單 ================= */

@@ -137,7 +137,45 @@
   .stink path:nth-child(2){animation-delay:.8s}.stink path:nth-child(3){animation-delay:1.6s}
   @keyframes stink{0%{opacity:0;transform:translateY(8px)}30%,60%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
   /* 洗澡：泡泡、甩水 */
-  .bathfx{position:absolute;inset:0;pointer-events:none;z-index:2}
+  .bathfx{position:absolute;inset:0;pointer-events:none;z-index:3}
+  .abu img,.abu .earpic{transition:filter 1.6s ease}
+  .abu.wet img,.abu.wet .earpic{filter:saturate(.7) brightness(.88) contrast(1.08)}
+  .bathfx .shower{position:absolute;right:-12%;top:-6%;width:34%;transform:rotate(-32deg);animation:showerin .35s cubic-bezier(.3,1.5,.5,1) backwards}
+  .bathfx .shower svg{display:block;width:100%}
+  .bathfx .shower.out{animation:showerout .3s ease-in forwards}
+  @keyframes showerin{from{transform:translate(30%,-30%) rotate(-32deg);opacity:0}}
+  @keyframes showerout{to{transform:translate(30%,-30%) rotate(-32deg);opacity:0}}
+  .bathfx .rain{position:absolute;left:14%;right:14%;top:2%;bottom:6%;overflow:hidden;border-radius:30% 30% 50% 50%;opacity:0;transition:opacity .25s}
+  .bathfx .rain.on{opacity:1}
+  .bathfx .rain b{position:absolute;top:-24%;width:3px;height:22%;border-radius:3px;background:linear-gradient(rgba(140,196,234,0),#8CC4EA);animation:rain .45s linear infinite}
+  @keyframes rain{to{transform:translateY(560%)}}
+  .bathfx .suds i.up{animation:bubin .35s cubic-bezier(.3,1.6,.5,1) backwards,bubup 1.4s ease-out infinite}
+  @keyframes bubup{0%{transform:translate(-50%,-50%)}100%{transform:translate(-50%,-260%) scale(.6);opacity:0}}
+  .bathfx .dryer{position:absolute;right:-14%;top:30%;width:34%;transform-origin:85% 80%;animation:dryin .45s cubic-bezier(.3,1.5,.5,1) backwards,drysway .9s ease-in-out .45s infinite alternate}
+  .bathfx .dryer svg{display:block;width:100%;filter:drop-shadow(0 4px 0 rgba(0,0,0,.12))}
+  .bathfx .dryer.out{animation:dryout .35s ease-in forwards}
+  @keyframes dryin{from{transform:translateX(60%) rotate(20deg);opacity:0}}
+  @keyframes drysway{from{transform:rotate(-7deg) translateY(-6%)}to{transform:rotate(6deg) translateY(6%)}}
+  @keyframes dryout{to{transform:translateX(60%) rotate(20deg);opacity:0}}
+  .bathfx .blow{position:absolute;left:4%;right:12%;top:30%;height:34%;opacity:.9;transition:opacity .3s}
+  .bathfx .blow.out{opacity:0}
+  .bathfx .blow svg{width:100%;height:100%;overflow:visible}
+  .bathfx .blow path{fill:none;stroke:#FFE7C2;stroke-width:5;stroke-linecap:round;stroke-dasharray:26 34;opacity:.85;animation:blow .5s linear infinite;filter:drop-shadow(0 0 2px rgba(255,180,120,.7))}
+  @keyframes blow{to{stroke-dashoffset:60}}
+  .tuft{position:absolute;left:44%;top:50%;width:14px;height:7px;margin-top:var(--y0);border-radius:50% 50% 50% 50%/80% 80% 20% 20%;background:#E9A15F;animation:tuft 1.1s ease-out forwards}
+  @keyframes tuft{0%{transform:translate(0,0) rotate(0);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--r));opacity:0}}
+  .abu.wet.damp img,.abu.wet.damp .earpic{filter:saturate(.85) brightness(.94) contrast(1.04)}
+  .bathfx .towel{position:absolute;left:50%;top:6%;width:84%;transform-origin:50% 0;animation:towelin .3s cubic-bezier(.3,1.5,.5,1) backwards,rub .22s ease-in-out .3s infinite alternate}
+  .bathfx .towel svg{display:block;width:100%;filter:drop-shadow(0 4px 0 rgba(0,0,0,.1))}
+  .bathfx .towel.out{animation:towelout .35s ease-in forwards}
+  @keyframes towelin{from{transform:translate(-50%,-60%);opacity:0}}
+  @keyframes rub{from{transform:translateX(-56%) rotate(-5deg)}to{transform:translateX(-44%) rotate(5deg)}}
+  @keyframes towelout{to{transform:translate(-50%,-80%) rotate(-10deg);opacity:0}}
+  .abu.fluffy{animation:fluffy .7s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes fluffy{0%{transform:scale(1)}35%{transform:scale(1.12,1.08)}65%{transform:scale(.97,1.02)}100%{transform:scale(1)}}
+  .spark{position:absolute;left:50%;top:50%;margin:-12px 0 0 -9px;font-size:24px;line-height:1;color:#F5C542;text-shadow:0 0 6px #fff;animation:spark 1.1s ease-out backwards}
+  @keyframes spark{0%{transform:translate(0,0) scale(.2);opacity:0}30%{opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1.1) rotate(90deg);opacity:0}}
+
   .bathfx i{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 30%,#EEF7FD 55%,#CFE6F7);border:1.5px solid rgba(120,180,222,.75);transform:translate(-50%,-50%);animation:bubin .35s cubic-bezier(.3,1.6,.5,1) backwards,bubwob 1.1s ease-in-out .35s infinite alternate}
   .bathfx.pop i{animation:bubpop .25s ease-in forwards}
   @keyframes bubin{from{transform:translate(-50%,-50%) scale(0)}}
@@ -742,6 +780,6 @@
   </nav>
 </div>
 <script src="config.js?v=1111"></script>
-<script src="app.js?v=1113b"></script>
+<script src="app.js?v=1125a"></script>
 </body>
 </html>
