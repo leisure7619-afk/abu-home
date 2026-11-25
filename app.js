@@ -1146,8 +1146,9 @@ function Home(){
   let bathing=false; const bathT=[];
   const later=(ms,f)=>bathT.push(setTimeout(f,ms));
   const SHOWER='<svg viewBox="0 0 100 70"><path d="M50 0v14" stroke="#B9C3CC" stroke-width="7" stroke-linecap="round"/><path d="M14 40a36 22 0 0 1 72 0z" fill="#DDE4EA" stroke="#B9C3CC" stroke-width="3"/><rect x="12" y="38" width="76" height="8" rx="4" fill="#C7D0D8"/>'+[24,36,50,64,76].map(x=>`<circle cx="${x}" cy="42" r="2" fill="#8CA0B2"/>`).join('')+'</svg>';
-  const DRYER='<svg viewBox="0 0 100 84"><rect x="62" y="44" width="15" height="36" rx="7" transform="rotate(14 70 44)" fill="#E98FA3"/><rect x="4" y="22" width="44" height="22" rx="6" fill="#F4A9B8"/><rect x="2" y="20" width="8" height="26" rx="3" fill="#E98FA3"/><circle cx="64" cy="33" r="27" fill="#F4A9B8"/><circle cx="64" cy="33" r="15" fill="#FBD3DB"/>'+[0,1,2,3,4,5].map(k=>`<path d="M64 33 L${64+13*Math.cos(k*1.047)} ${33+13*Math.sin(k*1.047)}" stroke="#E98FA3" stroke-width="3" stroke-linecap="round"/>`).join('')+'<circle cx="64" cy="33" r="4" fill="#E98FA3"/></svg>';
-  const TOWEL='<svg viewBox="0 0 120 70"><path d="M6 10 Q60 -6 114 10 L108 62 Q60 50 12 62 Z" fill="#9FD3E8"/><path d="M8 20 Q60 6 112 20" stroke="#fff" stroke-width="5" fill="none"/><path d="M10 30 Q60 16 110 30" stroke="#7DBFD9" stroke-width="3" fill="none"/>'+[18,32,46,60,74,88,102].map(x=>`<path d="M${x} ${x<60?58-(x-12)/6:50+(x-60)/6} v8" stroke="#7DBFD9" stroke-width="3" stroke-linecap="round"/>`).join('')+'</svg>';
+  const DRYER='<svg viewBox="0 0 100 100"><path d="M58 44 Q60 70 66 96" stroke="#9AA3AA" stroke-width="2.5" fill="none"/><rect x="48" y="34" width="20" height="56" rx="9" fill="#F4B8AD"/><rect x="48" y="34" width="7" height="56" rx="3.5" fill="#F9CFC6"/><rect x="50" y="76" width="16" height="6" rx="3" fill="#E8A396"/><rect x="14" y="10" width="76" height="34" rx="14" fill="#F7C6BC"/><rect x="14" y="12" width="76" height="9" rx="4.5" fill="#FBDAD3"/><ellipse cx="16" cy="27" rx="9" ry="17" fill="#F2956B"/><ellipse cx="16" cy="27" rx="5" ry="11" fill="#7A4A40"/><ellipse cx="88" cy="27" rx="4" ry="15" fill="#E9AFA3"/></svg>';
+  const TOWEL='<svg viewBox="0 0 120 70"><path d="M6 10 Q60 -6 114 10 L108 62 Q60 50 12 62 Z" fill="#BFCF8F" stroke="#98AA62" stroke-width="2"/><path d="M8 19 Q60 4 112 19" stroke="#D9DE8E" stroke-width="5" fill="none"/><path d="M9 27 Q60 13 111 27" stroke="#A7B86E" stroke-width="2" fill="none"/>'+[0,1,2,3,4,5].map(k=>`<path d="M${22+k*16} ${12+k%2*3} q4 18 -2 36" stroke="#AEBF74" stroke-width="1.6" fill="none" opacity=".7"/>`).join('')+'<path d="M12 62 Q60 50 108 62" stroke="#D9DE8E" stroke-width="4" fill="none"/></svg>';
+  const BRUSH='<svg viewBox="0 0 96 76"><ellipse cx="48" cy="40" rx="42" ry="32" fill="#D7335B" stroke="#A81E42" stroke-width="3"/>'+[...Array(5)].flatMap((_,r)=>[...Array(7)].map((_,c)=>{ const x=18+c*10+(r%2)*5, y=22+r*9; return ((x-48)**2/36**2+(y-40)**2/26**2<1)?`<circle cx="${x}" cy="${y}" r="3" fill="#F2648A"/>`:''; })).join('')+'<rect x="10" y="4" width="76" height="12" rx="6" fill="#C42A50" opacity=".9"/></svg>';
   const AIR='<svg viewBox="0 0 200 120" preserveAspectRatio="none">'+[18,42,66,90].map((y,k)=>`<path d="M200 ${y} q-25 -10 -50 0 t-50 0 t-50 0 t-50 0" style="animation-delay:${k*120}ms"/>`).join('')+'</svg>';
   /* 沙沙的水聲、吹風機的嗡嗡聲（白噪音過濾） */
   function hiss(dur,f,type,vol,delay=0){
@@ -1184,8 +1185,10 @@ function Home(){
       suds.innerHTML=bub.map(([x,y,s,d])=>`<i style="left:${x}%;top:${y}%;width:${s}%;height:${s}%;animation-delay:${d}ms,${d+350}ms"></i>`).join('')
         +[...Array(6)].map((_,i)=>`<i class="up" style="left:${18+i*13}%;top:${30+(i*23)%40}%;width:${5+i%3*2}%;height:${5+i%3*2}%;animation-delay:${600+i*180}ms"></i>`).join('');   // 飄上去的小泡泡
       for(let k=0;k<8;k++) tone(700+((k*137)%300),.06,'sine',.05,260,.1+k*.17);              // 啵啵啵
-      later(250,()=>say(pick(['（被搓成泡泡布）','癢癢的…','（偷舔泡泡）'])));
+      later(250,()=>say(pick(['（被刷得好舒服）','癢癢的…','（偷舔泡泡）'])));
+      const br=h(`<div class="brush">${BRUSH}</div>`); fxb.appendChild(br);          // 紅色按摩刷在頭上打圈
       [500,1000].forEach(ms=>later(ms,scrub));
+      later(1450,()=>br.classList.add('out'));
     });
     /* 3. 沖水 */
     later(3000,()=>{ rainEl.classList.add('on'); fxb.classList.add('pop'); hiss(.8,3200,'highpass',.06);
@@ -1222,7 +1225,11 @@ function Home(){
     });
     /* 7. 毛蓬蓬、亮晶晶 */
     later(8400,()=>{
-      hideEars(); abu.classList.add('fluffy');
+      hideEars(); abu.classList.add('fluffy','fresh');                       // 煥然一新：光掃過照片、四周星星閃一下
+      const gl=h('<div class="gleam"></div>'); abu.appendChild(gl); setTimeout(()=>gl.remove(),1300);
+      [[88,8,1],[-6,30,.75],[96,70,.85],[8,86,.6],[50,-8,.55]].forEach(([x,y,k],i)=>{
+        const tw=h(`<span class="twinkle" style="left:${x}%;top:${y}%;--k:${k};animation-delay:${i*120}ms"><svg viewBox="0 0 40 40"><path d="M20 0C21.5 13 27 18.5 40 20C27 21.5 21.5 27 20 40C18.5 27 13 21.5 0 20C13 18.5 18.5 13 20 0Z" fill="#FFE27A" stroke="#F5B930" stroke-width="1.5"/></svg></span>`); abu.appendChild(tw); setTimeout(()=>tw.remove(),1800); });
+      later(1500,()=>abu.classList.remove('fresh'));
       for(let k=0;k<9;k++){ const a=k/9*Math.PI*2, d=120+(k%3)*18;
         const sp=h(`<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${k*60}ms">✦</span>`); fx.appendChild(sp); setTimeout(()=>sp.remove(),1500); }
       [1047,1319,1568].forEach((f,k)=>tone(f,.25,'sine',.06,0,k*.09));

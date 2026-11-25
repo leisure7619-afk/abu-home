@@ -151,7 +151,7 @@
   @keyframes rain{to{transform:translateY(560%)}}
   .bathfx .suds i.up{animation:bubin .35s cubic-bezier(.3,1.6,.5,1) backwards,bubup 1.4s ease-out infinite}
   @keyframes bubup{0%{transform:translate(-50%,-50%)}100%{transform:translate(-50%,-260%) scale(.6);opacity:0}}
-  .bathfx .dryer{position:absolute;right:-14%;top:30%;width:34%;transform-origin:85% 80%;animation:dryin .45s cubic-bezier(.3,1.5,.5,1) backwards,drysway .9s ease-in-out .45s infinite alternate}
+  .bathfx .dryer{position:absolute;right:-16%;top:24%;width:38%;transform-origin:85% 80%;animation:dryin .45s cubic-bezier(.3,1.5,.5,1) backwards,drysway .9s ease-in-out .45s infinite alternate}
   .bathfx .dryer svg{display:block;width:100%;filter:drop-shadow(0 4px 0 rgba(0,0,0,.12))}
   .bathfx .dryer.out{animation:dryout .35s ease-in forwards}
   @keyframes dryin{from{transform:translateX(60%) rotate(20deg);opacity:0}}
@@ -171,6 +171,19 @@
   @keyframes towelin{from{transform:translate(-50%,-60%);opacity:0}}
   @keyframes rub{from{transform:translateX(-56%) rotate(-5deg)}to{transform:translateX(-44%) rotate(5deg)}}
   @keyframes towelout{to{transform:translate(-50%,-80%) rotate(-10deg);opacity:0}}
+  .bathfx .brush{position:absolute;left:50%;top:16%;width:34%;margin-left:-17%;animation:brushin .3s cubic-bezier(.3,1.5,.5,1) backwards,scrubcircle .5s linear .3s infinite}
+  .bathfx .brush svg{display:block;width:100%;filter:drop-shadow(0 4px 0 rgba(0,0,0,.14))}
+  .bathfx .brush.out{animation:brushout .3s ease-in forwards}
+  @keyframes brushin{from{transform:translateY(-60%) scale(.6);opacity:0}}
+  @keyframes scrubcircle{0%{transform:translate(-18%,0) rotate(-10deg)}25%{transform:translate(0,-12%) rotate(0)}50%{transform:translate(18%,0) rotate(10deg)}75%{transform:translate(0,12%) rotate(0)}100%{transform:translate(-18%,0) rotate(-10deg)}}
+  @keyframes brushout{to{transform:translateY(-70%) scale(.6);opacity:0}}
+  .gleam{position:absolute;inset:9px;border-radius:50%;overflow:hidden;pointer-events:none;z-index:4}
+  .gleam::after{content:"";position:absolute;top:-20%;bottom:-20%;left:-60%;width:38%;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.85),rgba(255,255,255,0));transform:skewX(-22deg);animation:gleam .9s ease-in-out .1s forwards}
+  @keyframes gleam{to{left:130%}}
+  .twinkle{position:absolute;width:calc(17% * var(--k));aspect-ratio:1;margin:calc(-8.5% * var(--k)) 0 0 calc(-8.5% * var(--k));pointer-events:none;z-index:5;animation:twinkle 1.3s ease-in-out backwards}
+  .twinkle svg{display:block;width:100%;height:100%;filter:drop-shadow(0 0 6px rgba(255,226,122,.9))}
+  @keyframes twinkle{0%{transform:scale(0) rotate(-45deg);opacity:0}25%{transform:scale(1.15) rotate(0);opacity:1}45%{transform:scale(.8) rotate(10deg)}65%{transform:scale(1.05) rotate(0);opacity:1}100%{transform:scale(0) rotate(45deg);opacity:0}}
+  .abu.fresh{box-shadow:0 10px 0 -2px var(--lawn-deep),0 0 0 8px rgba(255,226,122,.55),0 0 36px 12px rgba(255,236,160,.75)}
   .abu.fluffy{animation:fluffy .7s cubic-bezier(.3,1.6,.5,1)}
   @keyframes fluffy{0%{transform:scale(1)}35%{transform:scale(1.12,1.08)}65%{transform:scale(.97,1.02)}100%{transform:scale(1)}}
   .spark{position:absolute;left:50%;top:50%;margin:-12px 0 0 -9px;font-size:24px;line-height:1;color:#F5C542;text-shadow:0 0 6px #fff;animation:spark 1.1s ease-out backwards}
@@ -780,6 +793,6 @@
   </nav>
 </div>
 <script src="config.js?v=1111"></script>
-<script src="app.js?v=1125a"></script>
+<script src="app.js?v=1125c"></script>
 </body>
 </html>
